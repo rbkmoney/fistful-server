@@ -371,15 +371,16 @@ get_adapter_with_opts(Route) ->
     ProviderID :: ff_payouts_provider:id(),
     TerminalID :: ff_payouts_terminal:id() | undefined.
 get_adapter_with_opts(ProviderID, TerminalID) when is_integer(ProviderID) ->
-    {ok, Provider} = ff_payouts_provider:get(ProviderID),
+    DomainRevision = ff_domain_config:head(),
+    {ok, Provider} = ff_payouts_provider:get(ProviderID, DomainRevision),
     ProviderOpts = ff_payouts_provider:adapter_opts(Provider),
-    TerminalOpts = get_adapter_terminal_opts(TerminalID),
+    TerminalOpts = get_adapter_terminal_opts(TerminalID, DomainRevision),
     {ff_payouts_provider:adapter(Provider), maps:merge(ProviderOpts, TerminalOpts)}.
 
-get_adapter_terminal_opts(undefined) ->
+get_adapter_terminal_opts(undefined, _DomainRevision) ->
     #{};
-get_adapter_terminal_opts(TerminalID) ->
-    {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
+get_adapter_terminal_opts(TerminalID, DomainRevision) ->
+    {ok, Terminal} = ff_payouts_terminal:get(TerminalID, DomainRevision),
     ff_payouts_terminal:adapter_opts(Terminal).
 
 create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver} = Data, Resource, WdthID) ->

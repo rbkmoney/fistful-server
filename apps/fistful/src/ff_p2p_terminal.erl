@@ -18,12 +18,14 @@
 -type terminal_ref() :: dmsl_domain_thrift:'TerminalRef'().
 -type term_set() :: dmsl_domain_thrift:'ProvisionTermSet'().
 -type provision_terms() :: dmsl_domain_thrift:'P2PProvisionTerms'().
+-type domain_revision() :: ff_domain_config:revision().
 
 -export_type([id/0]).
 -export_type([terminal/0]).
 -export_type([terminal_ref/0]).
 -export_type([terminal_priority/0]).
 -export_type([provision_terms/0]).
+-export_type([domain_revision/0]).
 
 -export([adapter_opts/1]).
 -export([terms/1]).
@@ -31,6 +33,7 @@
 
 -export([ref/1]).
 -export([get/1]).
+-export([get/2]).
 
 %% Pipeline
 
@@ -70,8 +73,14 @@ ref(ID) ->
     {ok, terminal()}
     | {error, notfound}.
 get(ID) ->
+    get(head, ID).
+
+-spec get(id(), domain_revision()) ->
+    {ok, terminal()}
+    | {error, notfound}.
+get(ID, DomainRevision) ->
     do(fun() ->
-        WithdrawalTerminal = unwrap(ff_domain_config:object({terminal, ref(ID)})),
+        WithdrawalTerminal = unwrap(ff_domain_config:object(DomainRevision, {terminal, ref(ID)})),
         decode(ID, WithdrawalTerminal)
     end).
 

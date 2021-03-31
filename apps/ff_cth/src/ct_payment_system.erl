@@ -421,7 +421,7 @@ domain_config(Options, C) ->
         ]},
     P2PDecision5 =
         {candidates, [
-            candidate({constant, true}, ?trm(4))
+            candidate({constant, true}, ?trm(104))
         ]},
 
     Default = [

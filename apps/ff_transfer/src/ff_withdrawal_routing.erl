@@ -85,7 +85,7 @@ get_provider(#{provider_id := ProviderID}) ->
 get_terminal(Route) ->
     maps:get(terminal_id, Route, undefined).
 
--spec provision_terms(route(), domain_revision()) -> ff_maybe:maybe(provision_terms()).
+-spec provision_terms(route(), domain_revision()) -> ff_maybe:maybe(withdrawal_provision_terms()).
 provision_terms(Route, DomainRevision) ->
     {ok, Provider} = ff_payouts_provider:get(get_provider(Route), DomainRevision),
     ProviderTerms = ff_payouts_provider:provision_terms(Provider),

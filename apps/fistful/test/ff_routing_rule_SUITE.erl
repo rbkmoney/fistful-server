@@ -182,7 +182,7 @@ p2p_routes_found_test(_C) ->
             ],
             #{rejected_routes := []}
         },
-        gather_routes(p2p_routing_rules, PaymentInstitutionID, VS)
+        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
     ).
 
 -spec p2p_no_routes_found_test(config()) -> test_return().
@@ -194,7 +194,7 @@ p2p_no_routes_found_test(_C) ->
             [],
             #{rejected_routes := []}
         },
-        gather_routes(p2p_routing_rules, PaymentInstitutionID, VS)
+        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
     ).
 
 -spec p2p_rejected_by_prohibitions_table_test(config()) -> test_return().
@@ -213,7 +213,7 @@ p2p_rejected_by_prohibitions_table_test(_C) ->
                 ]
             }
         },
-        gather_routes(p2p_routing_rules, PaymentInstitutionID, VS)
+        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
     ).
 
 -spec p2p_ruleset_misconfig_test(config()) -> test_return().
@@ -225,7 +225,7 @@ p2p_ruleset_misconfig_test(_C) ->
             [],
             #{rejected_routes := []}
         },
-        gather_routes(p2p_routing_rules, PaymentInstitutionID, VS)
+        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
     ).
 
 -spec p2p_rules_not_found_test(config()) -> test_return().
@@ -237,7 +237,7 @@ p2p_rules_not_found_test(_C) ->
             [],
             #{rejected_routes := []}
         },
-        gather_routes(p2p_routing_rules, PaymentInstitutionID, VS)
+        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
     ).
 
 %%

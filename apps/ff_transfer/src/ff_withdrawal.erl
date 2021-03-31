@@ -971,18 +971,22 @@ make_final_cash_flow(Withdrawal) ->
 
     {_Amount, CurrencyID} = Body,
     #{provider_id := ProviderID} = Route,
-    {ok, Provider} = ff_payouts_provider:get(ProviderID),
+    {ok, Provider} = ff_payouts_provider:get(ProviderID, DomainRevision),
     ProviderAccounts = ff_payouts_provider:accounts(Provider),
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(PaymentInstitution, PartyVarset),
+    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(
+        PaymentInstitution,
+        PartyVarset,
+        DomainRevision
+    ),
     SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    {ok, ProviderFee} = compute_fees(Route, PartyVarset),
+    {ok, ProviderFee} = compute_fees(Route, PartyVarset, DomainRevision),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID,
@@ -1007,9 +1011,9 @@ make_final_cash_flow(Withdrawal) ->
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
 
--spec compute_fees(route(), party_varset()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
-compute_fees(Route, VS) ->
-    case ff_withdrawal_routing:provision_terms(Route) of
+-spec compute_fees(route(), party_varset(), domain_revision()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
+compute_fees(Route, VS, DomainRevision) ->
+    case ff_withdrawal_routing:provision_terms(Route, DomainRevision) of
         #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} ->
             case hg_selector:reduce_to_value(CashFlowSelector, VS) of
                 {ok, CashFlow} ->

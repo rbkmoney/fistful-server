@@ -689,6 +689,10 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_terminal(?trm(3)),
         ct_domain:withdrawal_terminal(?trm(4)),
         ct_domain:withdrawal_terminal(?trm(5)),
+        ct_domain:withdrawal_terminal(?trm(6)),
+        ct_domain:withdrawal_terminal(?trm(7)),
+        % Provider 17 satellite
+        ct_domain:withdrawal_terminal(?trm(8)),
 
         ct_domain:p2p_terminal(?trm(101)),
         ct_domain:p2p_terminal(?trm(102)),

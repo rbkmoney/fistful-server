@@ -18,12 +18,10 @@
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
 -type term_set() :: dmsl_domain_thrift:'ProvisionTermSet'().
 -type provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
--type domain_revision() :: ff_domain_config:revision().
 
 -export_type([id/0]).
 -export_type([provider/0]).
 -export_type([provision_terms/0]).
--export_type([domain_revision/0]).
 
 -export([id/1]).
 -export([accounts/1]).
@@ -33,7 +31,7 @@
 -export([provision_terms/1]).
 
 -export([ref/1]).
--export([get/2]).
+-export([get/1]).
 -export([compute_withdrawal_terminals_with_priority/2]).
 
 %% Pipeline
@@ -83,12 +81,12 @@ provision_terms(Provider) ->
 ref(ID) ->
     #domain_ProviderRef{id = ID}.
 
--spec get(id(), domain_revision()) ->
+-spec get(id()) ->
     {ok, provider()}
     | {error, notfound}.
-get(ID, DomainRevision) ->
+get(ID) ->
     do(fun() ->
-        Provider = unwrap(ff_domain_config:object(DomainRevision, {provider, ref(ID)})),
+        Provider = unwrap(ff_domain_config:object({provider, ref(ID)})),
         decode(ID, Provider)
     end).
 

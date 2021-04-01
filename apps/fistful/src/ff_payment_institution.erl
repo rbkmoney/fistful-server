@@ -35,7 +35,7 @@
 -export([compute_withdrawal_providers/2]).
 -export([compute_p2p_transfer_providers/2]).
 -export([compute_p2p_inspector/2]).
--export([compute_system_accounts/3]).
+-export([compute_system_accounts/2]).
 
 %% Pipeline
 
@@ -93,16 +93,15 @@ compute_p2p_inspector(#{p2p_inspector := InspectorSelector}, VS) ->
             Error
     end.
 
--spec compute_system_accounts(payment_institution(), hg_selector:varset(), ff_domain_config:revision()) ->
-    {ok, system_accounts()} | {error, term()}.
-compute_system_accounts(PaymentInstitution, VS, DomainRevision) ->
+-spec compute_system_accounts(payment_institution(), hg_selector:varset()) -> {ok, system_accounts()} | {error, term()}.
+compute_system_accounts(PaymentInstitution, VS) ->
     #{
         identity := Identity,
         system_accounts := SystemAccountsSelector
     } = PaymentInstitution,
     do(fun() ->
         SystemAccountSetRef = unwrap(hg_selector:reduce_to_value(SystemAccountsSelector, VS)),
-        SystemAccountSet = unwrap(ff_domain_config:object(DomainRevision, {system_account_set, SystemAccountSetRef})),
+        SystemAccountSet = unwrap(ff_domain_config:object({system_account_set, SystemAccountSetRef})),
         decode_system_account_set(Identity, SystemAccountSet)
     end).
 

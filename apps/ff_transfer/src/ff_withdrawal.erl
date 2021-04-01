@@ -82,6 +82,12 @@
 
 -type attempts() :: ff_withdrawal_route_attempt_utils:attempts().
 
+-type prepared_route() :: #{
+    route := route(),
+    party_revision := party_revision(),
+    domain_revision := domain_revision()
+}.
+
 -type quote_params() :: #{
     wallet_id := ff_wallet_machine:id(),
     currency_from := ff_currency:id(),
@@ -178,6 +184,7 @@
 -export_type([params/0]).
 -export_type([event/0]).
 -export_type([route/0]).
+-export_type([prepared_route/0]).
 -export_type([quote/0]).
 -export_type([quote_params/0]).
 -export_type([session/0]).
@@ -726,7 +733,8 @@ do_process_transfer(session_starting, Withdrawal) ->
 do_process_transfer(session_sleeping, Withdrawal) ->
     process_session_sleep(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
-    process_route_change(Withdrawal, Reason);
+    {ok, Providers} = do_process_routing(Withdrawal),
+    process_route_change(Providers, Withdrawal, Reason);
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->
@@ -971,22 +979,18 @@ make_final_cash_flow(Withdrawal) ->
 
     {_Amount, CurrencyID} = Body,
     #{provider_id := ProviderID} = Route,
-    {ok, Provider} = ff_payouts_provider:get(ProviderID, DomainRevision),
+    {ok, Provider} = ff_payouts_provider:get(ProviderID),
     ProviderAccounts = ff_payouts_provider:accounts(Provider),
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(
-        PaymentInstitution,
-        PartyVarset,
-        DomainRevision
-    ),
+    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(PaymentInstitution, PartyVarset),
     SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    {ok, ProviderFee} = compute_fees(Route, PartyVarset, DomainRevision),
+    {ok, ProviderFee} = compute_fees(Route, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID,
@@ -1011,9 +1015,9 @@ make_final_cash_flow(Withdrawal) ->
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
 
--spec compute_fees(route(), party_varset(), domain_revision()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
-compute_fees(Route, VS, DomainRevision) ->
-    case ff_withdrawal_routing:provision_terms(Route, DomainRevision) of
+-spec compute_fees(route(), party_varset()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
+compute_fees(Route, VS) ->
+    case ff_withdrawal_routing:provision_terms(Route) of
         #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} ->
             case hg_selector:reduce_to_value(CashFlowSelector, VS) of
                 {ok, CashFlow} ->
@@ -1536,11 +1540,10 @@ process_adjustment(Withdrawal) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, Withdrawal).
 
--spec process_route_change(withdrawal_state(), fail_type()) -> process_result().
-process_route_change(Withdrawal, Reason) ->
+-spec process_route_change([route()], withdrawal_state(), fail_type()) -> process_result().
+process_route_change(Providers, Withdrawal, Reason) ->
     case is_failure_transient(Reason, Withdrawal) of
         true ->
-            {ok, Providers} = do_process_routing(Withdrawal),
             do_process_route_change(Providers, Withdrawal, Reason);
         false ->
             process_transfer_fail(Reason, Withdrawal)

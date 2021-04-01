@@ -476,7 +476,7 @@ make_final_cash_flow(W2WTransferState) ->
     }),
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(PaymentInstitution, Varset, DomainRevision),
+    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(PaymentInstitution, Varset),
     SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),

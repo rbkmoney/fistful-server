@@ -50,8 +50,6 @@
 
 -export_type([varset/0]).
 
--export([fold/3]).
--export([collect/1]).
 -export([reduce/2]).
 -export([reduce_to_value/2]).
 -export([reduce_predicate/2]).
@@ -59,21 +57,6 @@
 -define(const(Bool), {constant, Bool}).
 
 %%
-
--spec fold(FoldWith :: fun((Value :: _, Acc) -> Acc), Acc, t()) -> Acc when Acc :: term().
-fold(FoldWith, Acc, {value, V}) ->
-    FoldWith(V, Acc);
-fold(FoldWith, Acc, {decisions, Ps}) ->
-    fold_decisions(FoldWith, Acc, Ps).
-
-fold_decisions(FoldWith, Acc, [{_Type, _, S} | Rest]) ->
-    fold_decisions(FoldWith, fold(FoldWith, Acc, S), Rest);
-fold_decisions(_, Acc, []) ->
-    Acc.
-
--spec collect(t()) -> [value()].
-collect(S) ->
-    fold(fun(V, Acc) -> [V | Acc] end, [], S).
 
 -spec reduce_to_value(t(), varset()) -> {ok, value()} | {error, term()}.
 reduce_to_value(Selector, VS) ->

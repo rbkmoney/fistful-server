@@ -768,7 +768,8 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        Routes = unwrap(prepare_routes(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        Varset = build_party_varset(VarsetParams),
+        Routes = unwrap(ff_withdrawal_routing:prepare_routes(Varset, Identity, DomainRevision)),
         case quote(Withdrawal) of
             undefined ->
                 Routes;
@@ -778,10 +779,6 @@ do_process_routing(Withdrawal) ->
                 [Route]
         end
     end).
-
--spec prepare_routes(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
-prepare_routes(PartyVarset, Identity, DomainRevision) ->
-    ff_withdrawal_routing:prepare_routes(PartyVarset, Identity, DomainRevision).
 
 -spec validate_quote_route(route(), quote_state()) -> {ok, valid} | {error, InconsistentQuote} when
     InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
@@ -1197,7 +1194,7 @@ get_quote_(Params) ->
         } = Params,
         Resource = maps:get(resource, Params, undefined),
 
-        [Route | _] = unwrap(route, prepare_routes(Varset, Identity, DomainRevision)),
+        [Route | _] = unwrap(route, ff_withdrawal_routing:prepare_routes(Varset, Identity, DomainRevision)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(Route),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),

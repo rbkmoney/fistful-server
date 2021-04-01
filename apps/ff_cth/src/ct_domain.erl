@@ -24,6 +24,7 @@
 -export([withdrawal_provider/4]).
 -export([withdrawal_terminal/1]).
 -export([p2p_provider/4]).
+-export([p2p_terminal/1]).
 
 %%
 
@@ -103,6 +104,22 @@ p2p_provider(Ref, ProxyRef, IdentityID, C) ->
             accounts = #{
                 ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
             }
+        }
+    }}.
+
+-spec p2p_terminal(?dtp('TerminalRef')) -> object().
+p2p_terminal(Ref) ->
+    {terminal, #domain_TerminalObject{
+        ref = Ref,
+        data = #domain_Terminal{
+            name = <<"P2PTerminal">>,
+            description = <<"P2P terminal">>,
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    p2p = #domain_P2PProvisionTerms{}
+                }
+            },
+            provider_ref = ?prv(101)
         }
     }}.
 

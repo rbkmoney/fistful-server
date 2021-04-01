@@ -37,7 +37,6 @@
 -type withdrawal_provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 -type currency_selector() :: dmsl_domain_thrift:'CurrencySelector'().
 -type cash_limit_selector() :: dmsl_domain_thrift:'CashLimitSelector'().
--type provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 
 %%
 
@@ -86,7 +85,7 @@ get_provider(#{provider_id := ProviderID}) ->
 get_terminal(Route) ->
     maps:get(terminal_id, Route, undefined).
 
--spec provision_terms(route(), domain_revision()) -> ff_maybe:maybe(provision_terms()).
+-spec provision_terms(route(), domain_revision()) -> ff_maybe:maybe(withdrawal_provision_terms()).
 provision_terms(Route, DomainRevision) ->
     {ok, Provider} = ff_payouts_provider:get(get_provider(Route), DomainRevision),
     ProviderTerms = ff_payouts_provider:provision_terms(Provider),
@@ -103,7 +102,7 @@ provision_terms(Route, DomainRevision) ->
 -spec merge_withdrawal_terms(
     ff_payouts_provider:provision_terms() | undefined,
     ff_payouts_terminal:provision_terms() | undefined
-) -> ff_maybe:maybe(provision_terms()).
+) -> ff_maybe:maybe(withdrawal_provision_terms()).
 merge_withdrawal_terms(
     #domain_WithdrawalProvisionTerms{
         currencies = PCurrencies,
@@ -214,7 +213,7 @@ get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, Par
         end,
     get_valid_terminals_with_priority(Rest, Provider, PartyVarset, DomainRevision, Acc).
 
--spec validate_terms(provider(), terminal(), hg_selector:varset()) ->
+-spec validate_terms(provider(), terminal(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
 validate_terms(Provider, Terminal, PartyVarset) ->
@@ -231,7 +230,7 @@ assert_terms_defined(undefined, undefined) ->
 assert_terms_defined(_, _) ->
     {ok, valid}.
 
--spec validate_combined_terms(withdrawal_provision_terms(), hg_selector:varset()) ->
+-spec validate_combined_terms(withdrawal_provision_terms(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
 validate_combined_terms(CombinedTerms, PartyVarset) ->
@@ -265,7 +264,7 @@ validate_selectors_defined(Terms) ->
             {error, terms_undefined}
     end.
 
--spec validate_currencies(currency_selector(), hg_selector:varset()) ->
+-spec validate_currencies(currency_selector(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
 validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
@@ -277,7 +276,7 @@ validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
     end.
 
--spec validate_cash_limit(cash_limit_selector(), hg_selector:varset()) ->
+-spec validate_cash_limit(cash_limit_selector(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
 validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->

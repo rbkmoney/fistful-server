@@ -374,40 +374,71 @@ dummy_provider_identity_id(Options) ->
 domain_config(Options, C) ->
     P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
 
-    Decision1 =
+    WithdrawalDecision1 =
         {delegates, [
             delegate(condition(party, <<"12345">>), ?ruleset(2)),
             delegate(condition(party, <<"67890">>), ?ruleset(4))
         ]},
-    Decision2 =
+    WithdrawalDecision2 =
         {delegates, [
             delegate(condition(cost_in, {0, 1000, <<"RUB">>}), ?ruleset(3))
         ]},
-    Decision3 =
+    WithdrawalDecision3 =
         {candidates, [
             candidate({constant, true}, ?trm(1)),
             candidate({constant, true}, ?trm(2))
         ]},
-    Decision4 =
+    WithdrawalDecision4 =
         {candidates, [
             candidate({constant, true}, ?trm(3)),
             candidate({constant, true}, ?trm(4)),
             candidate({constant, true}, ?trm(5))
         ]},
-    Decision5 =
+    WithdrawalDecision5 =
         {candidates, [
             candidate({constant, true}, ?trm(4))
+        ]},
+
+    P2PDecision1 =
+        {delegates, [
+            delegate(condition(party, <<"12345">>), ?ruleset(102)),
+            delegate(condition(party, <<"67890">>), ?ruleset(104))
+        ]},
+    P2PDecision2 =
+        {delegates, [
+            delegate(condition(cost_in, {0, 1000, <<"RUB">>}), ?ruleset(103))
+        ]},
+    P2PDecision3 =
+        {candidates, [
+            candidate({constant, true}, ?trm(101)),
+            candidate({constant, true}, ?trm(102))
+        ]},
+    P2PDecision4 =
+        {candidates, [
+            candidate({constant, true}, ?trm(103)),
+            candidate({constant, true}, ?trm(104)),
+            candidate({constant, true}, ?trm(105))
+        ]},
+    P2PDecision5 =
+        {candidates, [
+            candidate({constant, true}, ?trm(104))
         ]},
 
     Default = [
         ct_domain:globals(?eas(1), [?payinst(1)]),
         ct_domain:external_account_set(?eas(1), <<"Default">>, ?cur(<<"RUB">>), C),
 
-        routing_ruleset(?ruleset(1), <<"Rule#1">>, Decision1),
-        routing_ruleset(?ruleset(2), <<"Rule#2">>, Decision2),
-        routing_ruleset(?ruleset(3), <<"Rule#3">>, Decision3),
-        routing_ruleset(?ruleset(4), <<"Rule#4">>, Decision4),
-        routing_ruleset(?ruleset(5), <<"Rule#5">>, Decision5),
+        routing_ruleset(?ruleset(1), <<"WithdrawalRuleset#1">>, WithdrawalDecision1),
+        routing_ruleset(?ruleset(2), <<"WithdrawalRuleset#2">>, WithdrawalDecision2),
+        routing_ruleset(?ruleset(3), <<"WithdrawalRuleset#3">>, WithdrawalDecision3),
+        routing_ruleset(?ruleset(4), <<"WithdrawalRuleset#4">>, WithdrawalDecision4),
+        routing_ruleset(?ruleset(5), <<"WithdrawalRuleset#5">>, WithdrawalDecision5),
+
+        routing_ruleset(?ruleset(101), <<"P2PRuleset#1">>, P2PDecision1),
+        routing_ruleset(?ruleset(102), <<"P2PRuleset#2">>, P2PDecision2),
+        routing_ruleset(?ruleset(103), <<"P2PRuleset#3">>, P2PDecision3),
+        routing_ruleset(?ruleset(104), <<"P2PRuleset#4">>, P2PDecision4),
+        routing_ruleset(?ruleset(105), <<"P2PRuleset#5">>, P2PDecision5),
 
         {payment_institution, #domain_PaymentInstitutionObject{
             ref = ?payinst(1),
@@ -419,6 +450,10 @@ domain_config(Options, C) ->
                 withdrawal_routing_rules = #domain_RoutingRules{
                     policies = ?ruleset(1),
                     prohibitions = ?ruleset(5)
+                },
+                p2p_transfer_routing_rules = #domain_RoutingRules{
+                    policies = ?ruleset(101),
+                    prohibitions = ?ruleset(105)
                 },
                 inspector = {value, ?insp(1)},
                 residences = ['rus'],
@@ -658,6 +693,12 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_terminal(?trm(7)),
         % Provider 17 satellite
         ct_domain:withdrawal_terminal(?trm(8)),
+
+        ct_domain:p2p_terminal(?trm(101)),
+        ct_domain:p2p_terminal(?trm(102)),
+        ct_domain:p2p_terminal(?trm(103)),
+        ct_domain:p2p_terminal(?trm(104)),
+        ct_domain:p2p_terminal(?trm(105)),
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),

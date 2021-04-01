@@ -78,10 +78,10 @@ get(ID) ->
 -spec get(id(), domain_revision()) ->
     {ok, terminal()}
     | {error, notfound}.
-get(ID, DomainRevision) ->
+get(DomainRevision, ID) ->
     do(fun() ->
-        WithdrawalTerminal = unwrap(ff_domain_config:object(DomainRevision, {terminal, ref(ID)})),
-        decode(ID, WithdrawalTerminal)
+        P2PTerminal = unwrap(ff_domain_config:object(DomainRevision, {terminal, ref(ID)})),
+        decode(ID, P2PTerminal)
     end).
 
 %%

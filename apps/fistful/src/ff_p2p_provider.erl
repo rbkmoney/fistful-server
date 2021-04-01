@@ -94,9 +94,9 @@ get(ID) ->
 -spec get(head | ff_domain_config:revision(), id()) ->
     {ok, provider()}
     | {error, notfound}.
-get(Revision, ID) ->
+get(DomainRevision, ID) ->
     do(fun() ->
-        P2PProvider = unwrap(ff_domain_config:object(Revision, {provider, ref(ID)})),
+        P2PProvider = unwrap(ff_domain_config:object(DomainRevision, {provider, ref(ID)})),
         decode(ID, P2PProvider)
     end).
 

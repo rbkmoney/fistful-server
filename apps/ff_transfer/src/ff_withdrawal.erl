@@ -1013,18 +1013,24 @@ make_final_cash_flow(Withdrawal) ->
 
 -spec compute_fees(route(), party_varset(), domain_revision()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
 compute_fees(Route, VS, DomainRevision) ->
-    case ff_withdrawal_routing:provision_terms(Route, DomainRevision) of
-        #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} ->
-            case hg_selector:reduce_to_value(CashFlowSelector, VS) of
-                {ok, CashFlow} ->
+    ProviderID = maps:get(provider_id, Route),
+    TerminalID = maps:get(terminal_id, Route),
+    ProviderRef = ff_payouts_provider:ref(ProviderID),
+    TerminalRef = ff_payouts_terminal:ref(TerminalID),
+    case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision) of
+        {ok, ProviderTerminalTermset} ->
+            WalletProvisionTerms = ProviderTerminalTermset#domain_ProvisionTermSet.wallet,
+            WithdrawalProvisionTerms = WalletProvisionTerms#domain_WalletProvisionTerms.withdrawals,
+            case WithdrawalProvisionTerms#domain_WithdrawalProvisionTerms.cash_flow of
+                {value, CashFlow} ->
                     {ok, #{
                         postings => ff_cash_flow:decode_domain_postings(CashFlow)
                     }};
-                {error, Error} ->
-                    {error, Error}
+                _ ->
+                    {error, {misconfiguration, {missing, withdrawal_terms}}}
             end;
-        _ ->
-            {error, {misconfiguration, {missing, withdrawal_terms}}}
+        {error, Error} ->
+            {error, Error}
     end.
 
 -spec ensure_domain_revision_defined(domain_revision() | undefined) -> domain_revision().

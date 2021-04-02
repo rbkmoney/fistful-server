@@ -87,7 +87,8 @@ get_terminal(Route) ->
 
 -spec provision_terms(route(), domain_revision()) -> ff_maybe:maybe(withdrawal_provision_terms()).
 provision_terms(Route, DomainRevision) ->
-    {ok, Provider} = ff_payouts_provider:get(get_provider(Route), DomainRevision),
+    ProviderID = get_provider(Route),
+    {ok, Provider} = ff_payouts_provider:get(ProviderID, DomainRevision),
     ProviderTerms = ff_payouts_provider:provision_terms(Provider),
     TerminalTerms =
         case get_terminal(Route) of

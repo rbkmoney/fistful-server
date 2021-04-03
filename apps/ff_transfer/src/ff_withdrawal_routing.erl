@@ -148,7 +148,7 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}, Domain
     {ok, PayoutsTerminal} = ff_payouts_terminal:get(TerminalID, DomainRevision),
     {ok, PayoutsProvider} = ff_payouts_provider:get(ProviderID, DomainRevision),
     {Acc, RejectConext} =
-        case validate_terms(PayoutsProvider, PayoutsTerminal, PartyVarset) of
+        case validate_terms(PayoutsProvider, PayoutsTerminal, PartyVarset, DomainRevision) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0),
@@ -206,7 +206,7 @@ get_valid_terminals_with_priority([], _Provider, _PartyVarset, _DomainRevision, 
 get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, PartyVarset, DomainRevision, Acc0) ->
     Terminal = unwrap(ff_payouts_terminal:get(TerminalID, DomainRevision)),
     Acc =
-        case validate_terms(Provider, Terminal, PartyVarset) of
+        case validate_terms(Provider, Terminal, PartyVarset, DomainRevision) of
             {ok, valid} ->
                 [{TerminalID, Priority} | Acc0];
             {error, _Error} ->
@@ -214,27 +214,34 @@ get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, Par
         end,
     get_valid_terminals_with_priority(Rest, Provider, PartyVarset, DomainRevision, Acc).
 
--spec validate_terms(provider(), terminal(), party_varset()) ->
+-spec validate_terms(provider(), terminal(), party_varset(), domain_revision()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_terms(Provider, Terminal, PartyVarset) ->
-    do(fun() ->
-        ProviderTerms = ff_payouts_provider:provision_terms(Provider),
-        TerminalTerms = ff_payouts_terminal:provision_terms(Terminal),
-        _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
-        CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
-        unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
-    end).
+validate_terms(Provider, Terminal, PartyVarset, DomainRevision) ->
+    ProviderID = maps:get(id, Provider),
+    ProviderRef = ff_payouts_provider:ref(ProviderID),
+    TerminalID = maps:get(id, Terminal),
+    TerminalRef = ff_payouts_terminal:ref(TerminalID),
+    case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
+        {ok, ProviderTerminalTermset} ->
+            case ProviderTerminalTermset of
+                #domain_ProvisionTermSet{
+                    wallet = #domain_WalletProvisionTerms{
+                        withdrawals = WithdrawalProvisionTerms
+                    }
+                } ->
+                    do_validate_terms(WithdrawalProvisionTerms, PartyVarset);
+                _ ->
+                    {error, {misconfiguration, {missing, withdrawal_terms}}}
+            end;
+        {error, Error} ->
+            {error, Error}
+    end.
 
-assert_terms_defined(undefined, undefined) ->
-    {error, terms_undefined};
-assert_terms_defined(_, _) ->
-    {ok, valid}.
-
--spec validate_combined_terms(withdrawal_provision_terms(), party_varset()) ->
+-spec do_validate_terms(withdrawal_provision_terms(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_combined_terms(CombinedTerms, PartyVarset) ->
+do_validate_terms(CombinedTerms, PartyVarset) ->
     do(fun() ->
         #domain_WithdrawalProvisionTerms{
             currencies = CurrenciesSelector,
@@ -268,26 +275,28 @@ validate_selectors_defined(Terms) ->
 -spec validate_currencies(currency_selector(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
-    Currencies = unwrap(hg_selector:reduce_to_value(CurrenciesSelector, VS)),
+validate_currencies({value, Currencies}, #{currency := CurrencyRef}) ->
     case ordsets:is_element(CurrencyRef, Currencies) of
         true ->
             {ok, valid};
         false ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
-    end.
+    end;
+validate_currencies(_NotReducedSelector, _VS) ->
+    {error, {misconfiguration, {not_reduced_termset, currencies}}}.
 
 -spec validate_cash_limit(cash_limit_selector(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
-    CashRange = unwrap(hg_selector:reduce_to_value(CashLimitSelector, VS)),
+validate_cash_limit({value, CashRange}, #{cost := Cash}) ->
     case hg_cash_range:is_inside(Cash, CashRange) of
         within ->
             {ok, valid};
         _NotInRange ->
             {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
-    end.
+    end;
+validate_cash_limit(_NotReducedSelector, _VS) ->
+    {error, {misconfiguration, {not_reduced_termset, cash_range}}}.
 
 convert_to_route(ProviderTerminalMap) ->
     lists:foldl(

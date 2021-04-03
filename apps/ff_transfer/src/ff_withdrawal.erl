@@ -1019,10 +1019,14 @@ compute_fees(Route, VS, DomainRevision) ->
     TerminalRef = ff_payouts_terminal:ref(TerminalID),
     case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision) of
         {ok, ProviderTerminalTermset} ->
-            WalletProvisionTerms = ProviderTerminalTermset#domain_ProvisionTermSet.wallet,
-            WithdrawalProvisionTerms = WalletProvisionTerms#domain_WalletProvisionTerms.withdrawals,
-            case WithdrawalProvisionTerms#domain_WithdrawalProvisionTerms.cash_flow of
-                {value, CashFlow} ->
+            case ProviderTerminalTermset of
+                #domain_ProvisionTermSet{
+                    wallet = #domain_WalletProvisionTerms{
+                        withdrawals = #domain_WithdrawalProvisionTerms{
+                            cash_flow = {value, CashFlow}
+                        }
+                    }
+                } ->
                     {ok, #{
                         postings => ff_cash_flow:decode_domain_postings(CashFlow)
                     }};

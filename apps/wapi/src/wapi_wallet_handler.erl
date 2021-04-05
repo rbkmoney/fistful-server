@@ -52,7 +52,8 @@ map_error_type(schema_violated) -> <<"SchemaViolated">>;
 map_error_type(wrong_type) -> <<"WrongType">>;
 map_error_type(wrong_array) -> <<"WrongArray">>.
 
--spec authorize_api_key(operation_id(), api_key(), request_context(), handler_opts()) -> false | {true, wapi_auth:context()}.
+-spec authorize_api_key(operation_id(), api_key(), request_context(), handler_opts()) ->
+    false | {true, wapi_auth:context()}.
 authorize_api_key(OperationID, ApiKey, _SwagContext, _Opts) ->
     ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
     case uac:authorize_api_key(ApiKey, wapi_auth:get_verification_options()) of

@@ -226,6 +226,8 @@
 -type contract_params() :: p2p_party:contract_params().
 -type deadline() :: p2p_session:deadline().
 -type metadata() :: ff_entity_context:md().
+-type party_varset() :: hg_selector:varset().
+-type provider_ref() :: ff_p2p_provider:provider_ref().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -850,6 +852,7 @@ make_final_cash_flow(P2PTransferState) ->
 
     {_Amount, CurrencyID} = Body,
     #{provider_id := ProviderID} = Route,
+    ProviderRef = ff_p2p_provider:ref(ProviderID),
     {ok, Provider} = ff_p2p_provider:get(ProviderID),
     ProviderAccounts = ff_p2p_provider:accounts(Provider),
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
@@ -865,7 +868,7 @@ make_final_cash_flow(P2PTransferState) ->
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    ProviderFee = ff_p2p_provider:compute_fees(Provider, PartyVarset),
+    {ok, ProviderFee} = provider_compute_fees(ProviderRef, PartyVarset, DomainRevision),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID,
@@ -887,6 +890,32 @@ make_final_cash_flow(P2PTransferState) ->
     }),
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
+
+-spec provider_compute_fees(provider_ref(), party_varset(), domain_revision()) ->
+    {ok, ff_cash_flow:cash_flow_fee()}
+    | {error, term()}.
+provider_compute_fees(ProviderRef, PartyVarset, DomainRevision) ->
+    case ff_party:compute_provider(ProviderRef, PartyVarset, DomainRevision) of
+        {ok, Provider} ->
+            case Provider of
+                #domain_Provider{
+                    terms = #domain_ProvisionTermSet{
+                        wallet = #domain_WalletProvisionTerms{
+                            p2p = #domain_P2PProvisionTerms{
+                                cash_flow = {value, CashFlow}
+                            }
+                        }
+                    }
+                } ->
+                    {ok, #{
+                        postings => ff_cash_flow:decode_domain_postings(CashFlow)
+                    }};
+                _ ->
+                    {error, {misconfiguration, {missing, withdrawal_terms}}}
+            end;
+        {error, Error} ->
+            {error, Error}
+    end.
 
 -spec get_identity(identity_id()) -> {ok, identity()} | {error, notfound}.
 get_identity(IdentityID) ->

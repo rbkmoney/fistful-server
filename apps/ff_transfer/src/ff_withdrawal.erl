@@ -1011,7 +1011,9 @@ make_final_cash_flow(Withdrawal) ->
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
 
--spec compute_fees(route(), party_varset(), domain_revision()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
+-spec compute_fees(route(), party_varset(), domain_revision()) ->
+    {ok, ff_cash_flow:cash_flow_fee()}
+    | {error, term()}.
 compute_fees(Route, VS, DomainRevision) ->
     ProviderID = maps:get(provider_id, Route),
     TerminalID = maps:get(terminal_id, Route),

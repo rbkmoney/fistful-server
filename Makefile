@@ -17,11 +17,11 @@ SERVICE_IMAGE_PUSH_TAG ?= $(SERVICE_IMAGE_TAG)
 
 # Base image for the service
 BASE_IMAGE_NAME := service-erlang
-BASE_IMAGE_TAG := 51bd5f25d00cbf75616e2d672601dfe7351dcaa4
+BASE_IMAGE_TAG := d2b5ac42305aadae44d6f8b1d859fd1065749997
 
 # Build image tag to be used
 BUILD_IMAGE_NAME := build-erlang
-BUILD_IMAGE_TAG := 61a001bbb48128895735a3ac35b0858484fdb2eb
+BUILD_IMAGE_TAG := cc2d319150ec0b9cd23ad9347692a8066616b0f4
 
 REGISTRY := dr2.rbkmoney.com
 

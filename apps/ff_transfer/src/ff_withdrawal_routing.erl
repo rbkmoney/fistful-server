@@ -171,7 +171,6 @@ filter_routes_legacy_([], _PartyVarset, _DomainRevision, Acc) when map_size(Acc)
 filter_routes_legacy_([], _PartyVarset, _DomainRevision, Acc) ->
     {ok, convert_to_route(Acc)};
 filter_routes_legacy_([ProviderID | Rest], PartyVarset, DomainRevision, Acc0) ->
-    logger:warning("WOLOLO =======>~nFilter routes legacy, Providers=~p~n", [ProviderID | Rest]),
     ProviderRef = ff_payouts_provider:ref(ProviderID),
     {ok, TerminalsWithPriority} = compute_withdrawal_terminals_with_priority(ProviderRef, PartyVarset, DomainRevision),
     Acc =
@@ -195,12 +194,10 @@ filter_routes_legacy_([ProviderID | Rest], PartyVarset, DomainRevision, Acc0) ->
 compute_withdrawal_terminals_with_priority(ProviderRef, VS, DomainRevision) ->
     case ff_party:compute_provider(ProviderRef, VS, DomainRevision) of
         {ok, Provider} ->
-            logger:warning("WOLOLO =======>~nProvider reduced, Provider=~p~n", [Provider]),
             case Provider of
                 #domain_Provider{
                     terminal = {value, Terminals}
                 } ->
-                    logger:warning("WOLOLO =======>~nTerminals reduced=~p~n", [Terminals]),
                     {ok, [
                         {TerminalID, Priority}
                         || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals

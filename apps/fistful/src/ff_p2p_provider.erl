@@ -21,6 +21,7 @@
 -type provision_terms() :: dmsl_domain_thrift:'P2PProvisionTerms'().
 
 -export_type([id/0]).
+-export_type([provider_ref/0]).
 -export_type([provider/0]).
 -export_type([adapter/0]).
 -export_type([adapter_opts/0]).

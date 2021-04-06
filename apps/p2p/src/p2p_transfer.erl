@@ -735,13 +735,12 @@ get_fees(P2PTransferState) ->
     Route = route(P2PTransferState),
     #{provider_id := ProviderID} = Route,
     DomainRevision = domain_revision(P2PTransferState),
-    {ok, Provider} = ff_p2p_provider:get(DomainRevision, ProviderID),
     {ok, Identity} = get_identity(owner(P2PTransferState)),
     PartyVarset = create_varset(Identity, P2PTransferState),
     Body = body(P2PTransferState),
 
-    #{terms := ProviderTerms} = Provider,
-    ProviderFees = get_provider_fees(ProviderTerms, Body, PartyVarset),
+    ProviderRef = ff_p2p_provider:ref(ProviderID),
+    ProviderFees = get_provider_fees(ProviderRef, Body, PartyVarset, DomainRevision),
 
     PartyID = ff_identity:party(Identity),
     ContractID = ff_identity:contract(Identity),
@@ -764,19 +763,26 @@ get_fees(P2PTransferState) ->
     MerchantFees = get_merchant_fees(P2PMerchantTerms, Body),
     {ProviderFees, MerchantFees}.
 
--spec get_provider_fees(dmsl_domain_thrift:'ProvisionTermSet'(), body(), p2p_party:varset()) ->
+-spec get_provider_fees(ff_p2p_provider:provider_ref(), body(), p2p_party:varset(), domain_revision()) ->
     ff_fees_final:fees() | undefined.
-get_provider_fees(Terms, Body, PartyVarset) ->
-    #domain_ProvisionTermSet{
-        wallet = #domain_WalletProvisionTerms{
-            p2p = P2PTerms
-        }
-    } = Terms,
-    case P2PTerms of
-        #domain_P2PProvisionTerms{fees = FeeSelector} ->
-            {value, ProviderFees} = hg_selector:reduce(FeeSelector, PartyVarset),
-            compute_fees(ProviderFees, Body);
-        undefined ->
+get_provider_fees(ProviderRef, Body, PartyVarset, DomainRevision) ->
+    case ff_party:compute_provider(ProviderRef, PartyVarset, DomainRevision) of
+        {ok, Provider} ->
+            case Provider of
+                #domain_Provider{
+                    terms = #domain_ProvisionTermSet{
+                        wallet = #domain_WalletProvisionTerms{
+                            p2p = #domain_P2PProvisionTerms{
+                                fees = {value, ProviderFees}
+                            }
+                        }
+                    }
+                } ->
+                    compute_fees(ProviderFees, Body);
+                _ ->
+                    undefined
+            end;
+        _ ->
             undefined
     end.
 

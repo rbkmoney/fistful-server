@@ -315,7 +315,7 @@ compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
     ProviderRef :: provider_ref(),
     Varset :: hg_selector:varset(),
     DomainRevision :: domain_revision(),
-    Result :: provider().
+    Result :: {ok, provider()} | {error, provider_not_found}.
 compute_provider(ProviderRef, Varset, DomainRevision) ->
     DomainVarset = encode_varset(Varset),
     {Client, Context} = get_party_client(),

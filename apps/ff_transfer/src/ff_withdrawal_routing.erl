@@ -24,11 +24,13 @@
 -type domain_revision() :: ff_domain_config:revision().
 -type party_varset() :: hg_selector:varset().
 
+-type provider_ref() :: ff_payouts_provider:provider_ref().
 -type provider_id() :: ff_payouts_provider:id().
--type provider() :: ff_payouts_provider:provider().
+% -type provider() :: ff_payouts_provider:provider().
 
+-type terminal_ref() :: ff_payouts_provider:terminal_ref().
 -type terminal_id() :: ff_payouts_terminal:id().
--type terminal() :: ff_payouts_terminal:terminal().
+% -type terminal() :: ff_payouts_terminal:terminal().
 -type terminal_priority() :: ff_payouts_terminal:terminal_priority().
 
 -type routing_rule_route() :: ff_routing_rule:route().
@@ -145,10 +147,8 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}, Domain
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
-    {ok, PayoutsTerminal} = ff_payouts_terminal:get(TerminalID, DomainRevision),
-    {ok, PayoutsProvider} = ff_payouts_provider:get(ProviderID, DomainRevision),
     {Acc, RejectConext} =
-        case validate_terms(PayoutsProvider, PayoutsTerminal, PartyVarset, DomainRevision) of
+        case validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0),
@@ -173,10 +173,11 @@ filter_routes_legacy_([], _PartyVarset, _DomainRevision, Acc) when map_size(Acc)
 filter_routes_legacy_([], _PartyVarset, _DomainRevision, Acc) ->
     {ok, convert_to_route(Acc)};
 filter_routes_legacy_([ProviderID | Rest], PartyVarset, DomainRevision, Acc0) ->
-    Provider = unwrap(ff_payouts_provider:get(ProviderID, DomainRevision)),
-    {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
+    logger:warning("WOLOLO =======>~nFilter routes legacy, Providers=~p~n", [ProviderID | Rest]),
+    ProviderRef = ff_payouts_provider:ref(ProviderID),
+    {ok, TerminalsWithPriority} = compute_withdrawal_terminals_with_priority(ProviderRef, PartyVarset, DomainRevision),
     Acc =
-        case get_valid_terminals_with_priority(TerminalsWithPriority, Provider, PartyVarset, DomainRevision, []) of
+        case get_valid_terminals_with_priority(TerminalsWithPriority, ProviderRef, PartyVarset, DomainRevision, []) of
             [] ->
                 Acc0;
             TPL ->
@@ -191,37 +192,47 @@ filter_routes_legacy_([ProviderID | Rest], PartyVarset, DomainRevision, Acc0) ->
         end,
     filter_routes_legacy_(Rest, PartyVarset, DomainRevision, Acc).
 
--spec get_provider_terminals_with_priority(provider(), party_varset()) -> {ok, [{terminal_id(), terminal_priority()}]}.
-get_provider_terminals_with_priority(Provider, VS) ->
-    case ff_payouts_provider:compute_withdrawal_terminals_with_priority(Provider, VS) of
-        {ok, TerminalsWithPriority} ->
-            {ok, TerminalsWithPriority};
-        {error, {misconfiguration, _Details} = Error} ->
-            _ = logger:warning("Provider terminal search failed: ~p", [Error]),
-            {ok, []}
+-spec compute_withdrawal_terminals_with_priority(provider_ref(), party_varset(), domain_revision()) ->
+    {ok, [{terminal_id(), terminal_priority()}]} | {error, term()}.
+compute_withdrawal_terminals_with_priority(ProviderRef, VS, DomainRevision) ->
+    case ff_party:compute_provider(ProviderRef, VS, DomainRevision) of
+        {ok, Provider} ->
+            logger:warning("WOLOLO =======>~nProvider reduced, Provider=~p~n", [Provider]),
+            case Provider of
+                #domain_Provider{
+                    terminal = {value, Terminals}
+                } ->
+                    logger:warning("WOLOLO =======>~nTerminals reduced=~p~n", [Terminals]),
+                    {ok, [
+                        {TerminalID, Priority}
+                        || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals
+                    ]};
+                _ ->
+                    Error = {misconfiguration, {missing, terminal_selector}},
+                    _ = logger:warning("Provider terminal search failed: ~p", [Error]),
+                    {ok, []}
+            end;
+        {error, Error} ->
+            {error, Error}
     end.
 
-get_valid_terminals_with_priority([], _Provider, _PartyVarset, _DomainRevision, Acc) ->
+get_valid_terminals_with_priority([], _ProviderRef, _PartyVarset, _DomainRevision, Acc) ->
     Acc;
-get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, PartyVarset, DomainRevision, Acc0) ->
-    Terminal = unwrap(ff_payouts_terminal:get(TerminalID, DomainRevision)),
+get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], ProviderRef, PartyVarset, DomainRevision, Acc0) ->
+    TerminalRef = ff_payouts_terminal:ref(TerminalID),
     Acc =
-        case validate_terms(Provider, Terminal, PartyVarset, DomainRevision) of
+        case validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
             {ok, valid} ->
                 [{TerminalID, Priority} | Acc0];
             {error, _Error} ->
                 Acc0
         end,
-    get_valid_terminals_with_priority(Rest, Provider, PartyVarset, DomainRevision, Acc).
+    get_valid_terminals_with_priority(Rest, ProviderRef, PartyVarset, DomainRevision, Acc).
 
--spec validate_terms(provider(), terminal(), party_varset(), domain_revision()) ->
+-spec validate_terms(provider_ref(), terminal_ref(), party_varset(), domain_revision()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_terms(Provider, Terminal, PartyVarset, DomainRevision) ->
-    ProviderID = maps:get(id, Provider),
-    ProviderRef = ff_payouts_provider:ref(ProviderID),
-    TerminalID = maps:get(id, Terminal),
-    TerminalRef = ff_payouts_terminal:ref(TerminalID),
+validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) ->
     case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
         {ok, ProviderTerminalTermset} ->
             case ProviderTerminalTermset of

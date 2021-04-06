@@ -26,11 +26,9 @@
 
 -type provider_ref() :: ff_payouts_provider:provider_ref().
 -type provider_id() :: ff_payouts_provider:id().
-% -type provider() :: ff_payouts_provider:provider().
 
--type terminal_ref() :: ff_payouts_provider:terminal_ref().
+-type terminal_ref() :: ff_payouts_terminal:terminal_ref().
 -type terminal_id() :: ff_payouts_terminal:id().
-% -type terminal() :: ff_payouts_terminal:terminal().
 -type terminal_priority() :: ff_payouts_terminal:terminal_priority().
 
 -type routing_rule_route() :: ff_routing_rule:route().

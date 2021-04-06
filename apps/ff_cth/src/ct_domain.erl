@@ -105,7 +105,8 @@ p2p_provider(Ref, ProxyRef, IdentityID, C) ->
                 ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
             },
             terminal = {
-                decisions, []
+                decisions,
+                []
             }
         }
     }}.

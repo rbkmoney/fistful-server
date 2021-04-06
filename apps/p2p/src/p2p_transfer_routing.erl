@@ -77,7 +77,8 @@ get_provider(#{provider_id := ProviderID}) ->
 get_terminal(Route) ->
     maps:get(terminal_id, Route, undefined).
 
--spec filter_valid_routes([routing_rule_route()], reject_context(), party_varset(), domain_revision()) -> {[route()], reject_context()}.
+-spec filter_valid_routes([routing_rule_route()], reject_context(), party_varset(), domain_revision()) ->
+    {[route()], reject_context()}.
 filter_valid_routes(Routes, RejectContext, VS, DomainRevision) ->
     filter_valid_routes_(Routes, VS, {#{}, RejectContext}, DomainRevision).
 

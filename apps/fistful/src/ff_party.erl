@@ -90,6 +90,7 @@
 -export([validate_p2p_template_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
+-export([compute_payment_institution/3]).
 -export([compute_routing_ruleset/3]).
 -export([compute_provider/3]).
 -export([compute_provider_terminal_terms/4]).
@@ -112,6 +113,8 @@
 -type domain_revision() :: ff_domain_config:revision().
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet_state().
+-type payinst_ref() :: ff_payment_institution:payinst_ref().
+-type payment_institution() :: dmsl_domain_thrift:'PaymentInstitution'().
 -type payment_institution_id() :: ff_payment_institution:id().
 -type routing_ruleset_ref() :: dmsl_domain_thrift:'RoutingRulesetRef'().
 -type routing_ruleset() :: dmsl_domain_thrift:'RoutingRuleset'().
@@ -287,6 +290,28 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
             {error, {party_not_exists_yet, PartyID}};
         {error, Unexpected} ->
             erlang:error({unexpected, Unexpected})
+    end.
+
+-spec compute_payment_institution(PaymentInstitutionRef, Varset, DomainRevision) -> Result when
+    PaymentInstitutionRef :: payinst_ref(),
+    Varset :: hg_selector:varset(),
+    DomainRevision :: domain_revision(),
+    Result :: {ok, payment_institution()} | {error, payinst_not_found}.
+compute_payment_institution(PaymentInstitutionRef, Varset, DomainRevision) ->
+    DomainVarset = encode_varset(Varset),
+    {Client, Context} = get_party_client(),
+    Result = party_client_thrift:compute_payment_institution(
+        PaymentInstitutionRef,
+        DomainRevision,
+        DomainVarset,
+        Client,
+        Context
+    ),
+    case Result of
+        {ok, PaymentInstitution} ->
+            {ok, PaymentInstitution};
+        {error, #payproc_PaymentInstitutionNotFound{}} ->
+            {error, payinst_not_found}
     end.
 
 -spec compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) -> Result when

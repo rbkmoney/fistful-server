@@ -255,7 +255,7 @@ make_varset(Cash, PartyID) ->
 
 gather_routes(RoutingRulesTag, PaymentInstitutionID, Varset) ->
     Revision = ff_domain_config:head(),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, Revision),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, Varset, Revision),
     ff_routing_rule:gather_routes(
         PaymentInstitution,
         RoutingRulesTag,

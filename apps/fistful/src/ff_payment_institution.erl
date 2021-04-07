@@ -3,6 +3,10 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -type id() :: dmsl_domain_thrift:'ObjectID'().
+
+-type domain_revision() :: ff_domain_config:revision().
+-type party_varset() :: hg_selector:varset().
+
 -type payment_institution() :: #{
     id := id(),
     system_accounts := dmsl_domain_thrift:'SystemAccountSetSelector'(),
@@ -26,16 +30,17 @@
 }.
 
 -export_type([id/0]).
+-export_type([payinst_ref/0]).
 -export_type([payment_institution/0]).
 
 -export([id/1]).
 
 -export([ref/1]).
--export([get/2]).
--export([compute_withdrawal_providers/2]).
--export([compute_p2p_transfer_providers/2]).
--export([compute_p2p_inspector/2]).
--export([compute_system_accounts/3]).
+-export([get/3]).
+-export([withdrawal_providers/1]).
+-export([p2p_transfer_providers/1]).
+-export([p2p_inspector/1]).
+-export([system_accounts/2]).
 
 %% Pipeline
 
@@ -53,55 +58,41 @@ id(#{id := ID}) ->
 ref(ID) ->
     #domain_PaymentInstitutionRef{id = ID}.
 
--spec get(id(), ff_domain_config:revision()) ->
+-spec get(id(), party_varset(), domain_revision()) ->
     {ok, payment_institution()}
     | {error, notfound}.
-get(ID, DomainRevision) ->
+get(PaymentInstitutionID, VS, DomainRevision) ->
     do(fun() ->
-        PaymentInstitution = unwrap(ff_domain_config:object(DomainRevision, {payment_institution, ref(ID)})),
-        decode(ID, PaymentInstitution)
+        PaymentInstitutionRef = ref(PaymentInstitutionID),
+        PaymentInstitution = unwrap(ff_party:compute_payment_institution(PaymentInstitutionRef, VS, DomainRevision)),
+        decode(PaymentInstitutionID, PaymentInstitution)
     end).
 
--spec compute_withdrawal_providers(payment_institution(), hg_selector:varset()) ->
-    {ok, [ff_payouts_provider:id()]} | {error, term()}.
-compute_withdrawal_providers(#{withdrawal_providers := ProviderSelector}, VS) ->
-    case hg_selector:reduce_to_value(ProviderSelector, VS) of
-        {ok, Providers} ->
-            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-        Error ->
-            Error
-    end.
+-spec withdrawal_providers(payment_institution()) -> [ff_payouts_provider:id()].
+withdrawal_providers(#{withdrawal_providers := {value, Providers}}) ->
+    [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers].
 
--spec compute_p2p_transfer_providers(payment_institution(), hg_selector:varset()) ->
-    {ok, [ff_payouts_provider:id()]} | {error, term()}.
-compute_p2p_transfer_providers(#{p2p_providers := ProviderSelector}, VS) ->
-    case hg_selector:reduce_to_value(ProviderSelector, VS) of
-        {ok, Providers} ->
-            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-        Error ->
-            Error
-    end.
+-spec p2p_transfer_providers(payment_institution()) -> [ff_payouts_provider:id()].
+p2p_transfer_providers(#{p2p_providers := {value, Providers}}) ->
+    [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers].
 
--spec compute_p2p_inspector(payment_institution(), hg_selector:varset()) -> {ok, p2p_inspector:id()} | {error, term()}.
-compute_p2p_inspector(#{p2p_inspector := InspectorSelector} = PS, _VS) when InspectorSelector =:= undefined ->
+-spec p2p_inspector(payment_institution()) ->
+    {ok, p2p_inspector:inspector_ref()}
+    | {error, term()}.
+p2p_inspector(#{p2p_inspector := InspectorSelector} = PS) when InspectorSelector =:= undefined ->
     {error, {misconfiguration, {'No p2p inspector in a given payment_institution', PS}}};
-compute_p2p_inspector(#{p2p_inspector := InspectorSelector}, VS) ->
-    case hg_selector:reduce_to_value(InspectorSelector, VS) of
-        {ok, #domain_P2PInspectorRef{id = InspectorID}} ->
-            {ok, InspectorID};
-        Error ->
-            Error
-    end.
+p2p_inspector(#{p2p_inspector := InspectorRef}) ->
+    {ok, InspectorRef}.
 
--spec compute_system_accounts(payment_institution(), hg_selector:varset(), ff_domain_config:revision()) ->
-    {ok, system_accounts()} | {error, term()}.
-compute_system_accounts(PaymentInstitution, VS, DomainRevision) ->
+-spec system_accounts(payment_institution(), domain_revision()) ->
+    {ok, system_accounts()}
+    | {error, term()}.
+system_accounts(PaymentInstitution, DomainRevision) ->
     #{
         identity := Identity,
-        system_accounts := SystemAccountsSelector
+        system_accounts := SystemAccountSetRef
     } = PaymentInstitution,
     do(fun() ->
-        SystemAccountSetRef = unwrap(hg_selector:reduce_to_value(SystemAccountsSelector, VS)),
         SystemAccountSet = unwrap(ff_domain_config:object(DomainRevision, {system_account_set, SystemAccountSetRef})),
         decode_system_account_set(Identity, SystemAccountSet)
     end).

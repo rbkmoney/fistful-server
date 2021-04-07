@@ -651,13 +651,13 @@ process_risk_scoring(P2PTransferState) ->
 do_risk_scoring(P2PTransferState) ->
     DomainRevision = domain_revision(P2PTransferState),
     {ok, Identity} = get_identity(owner(P2PTransferState)),
-    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     PartyVarset = create_varset(Identity, P2PTransferState),
-    {ok, InspectorRef} = ff_payment_institution:compute_p2p_inspector(PaymentInstitution, PartyVarset),
+    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+    {ok, InspectorRef} = ff_payment_institution:p2p_inspector(PaymentInstitution),
     {ok, Inspector} = ff_domain_config:object(
         DomainRevision,
-        {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}
+        {p2p_inspector, InspectorRef}
     ),
     Score =
         case genlib_app:env(p2p, score_id, undefined) of
@@ -858,12 +858,8 @@ make_final_cash_flow(P2PTransferState) ->
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(
-        PaymentInstitution,
-        PartyVarset,
-        DomainRevision
-    ),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+    {ok, SystemAccounts} = ff_payment_institution:system_accounts(PaymentInstitution, DomainRevision),
     SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),

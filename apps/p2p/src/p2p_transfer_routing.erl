@@ -37,7 +37,7 @@
 -spec prepare_routes(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
 prepare_routes(VS, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, VS, DomainRevision),
     {Routes, RejectContext0} = ff_routing_rule:gather_routes(
         PaymentInstitution,
         p2p_transfer_routing_rules,
@@ -49,7 +49,7 @@ prepare_routes(VS, Identity, DomainRevision) ->
         [] ->
             ff_routing_rule:log_reject_context(RejectContext1),
             logger:log(info, "Fallback to legacy method of routes gathering"),
-            {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, VS),
+            Providers = ff_payment_institution:p2p_transfer_providers(PaymentInstitution),
             FilteredRoutes = filter_routes_legacy(Providers, VS, DomainRevision),
             case FilteredRoutes of
                 [] ->

@@ -49,20 +49,26 @@ prepare_routes(VS, Identity, DomainRevision) ->
         [] ->
             ff_routing_rule:log_reject_context(RejectContext1),
             logger:log(info, "Fallback to legacy method of routes gathering"),
-            case ff_payment_institution:p2p_transfer_providers(PaymentInstitution) of
-                {ok, Providers} ->
-                    FilteredRoutes = filter_routes_legacy(Providers, VS, DomainRevision),
-                    case FilteredRoutes of
-                        [] ->
-                            {error, route_not_found};
-                        [_Route | _] ->
-                            {ok, FilteredRoutes}
-                    end;
-                {error, _Error} ->
-                    {error, route_not_found}
-            end;
+            gather_routes_legacy(PaymentInstitution, VS, DomainRevision);
         [_Route | _] ->
             {ok, ValidatedRoutes}
+    end.
+
+-spec gather_routes_legacy(ff_payment_institution:payment_institution(), party_varset(), domain_revision()) ->
+    {ok, [route()]}
+    | {error, route_not_found}.
+gather_routes_legacy(PaymentInstitution, VS, DomainRevision) ->
+    case ff_payment_institution:p2p_transfer_providers(PaymentInstitution) of
+        {ok, Providers} ->
+            FilteredRoutes = filter_routes_legacy(Providers, VS, DomainRevision),
+            case FilteredRoutes of
+                [] ->
+                    {error, route_not_found};
+                [_Route | _] ->
+                    {ok, FilteredRoutes}
+            end;
+        {error, _Error} ->
+            {error, route_not_found}
     end.
 
 -spec make_route(provider_id(), terminal_id() | undefined) -> route().

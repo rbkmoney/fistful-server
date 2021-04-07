@@ -68,13 +68,21 @@ get(PaymentInstitutionID, VS, DomainRevision) ->
         decode(PaymentInstitutionID, PaymentInstitution)
     end).
 
--spec withdrawal_providers(payment_institution()) -> [ff_payouts_provider:id()].
+-spec withdrawal_providers(payment_institution()) ->
+    {ok, [ff_payouts_provider:id()]}
+    | {error, term()}.
 withdrawal_providers(#{withdrawal_providers := {value, Providers}}) ->
-    [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers].
+    {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
+withdrawal_providers(PaymentInstitution) ->
+    {error, {misconfiguration, {'No withdrawal providers in a given payment institution', PaymentInstitution}}}.
 
--spec p2p_transfer_providers(payment_institution()) -> [ff_payouts_provider:id()].
+-spec p2p_transfer_providers(payment_institution()) ->
+    {ok, [ff_payouts_provider:id()]}
+    | {error, term()}.
 p2p_transfer_providers(#{p2p_providers := {value, Providers}}) ->
-    [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers].
+    {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
+p2p_transfer_providers(PaymentInstitution) ->
+    {error, {misconfiguration, {'No p2p providers in a given payment institution', PaymentInstitution}}}.
 
 -spec p2p_inspector(payment_institution()) ->
     {ok, p2p_inspector:inspector_ref()}

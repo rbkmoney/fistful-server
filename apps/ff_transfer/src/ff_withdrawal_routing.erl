@@ -56,10 +56,14 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
             ff_routing_rule:log_reject_context(RejectContext1),
             logger:log(info, "Fallback to legacy method of routes gathering"),
             case ff_payment_institution:withdrawal_providers(PaymentInstitution) of
-                [] ->
-                    {error, route_not_found};
-                Providers ->
-                    filter_routes_legacy(Providers, PartyVarset, DomainRevision)
+                {ok, Providers} ->
+                    filter_routes_legacy(Providers, PartyVarset, DomainRevision);
+                {error, {misconfiguration, _Details} = Error} ->
+                    %% TODO: Do not interpret such error as an empty route list.
+                    %% The current implementation is made for compatibility reasons.
+                    %% Try to remove and follow the tests.
+                    _ = logger:warning("Route search failed: ~p", [Error]),
+                    {error, route_not_found}
             end;
         [_Route | _] ->
             {ok, ValidatedRoutes}

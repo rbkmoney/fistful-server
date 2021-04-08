@@ -60,7 +60,7 @@ ref(ID) ->
 
 -spec get(id(), party_varset(), domain_revision()) ->
     {ok, payment_institution()}
-    | {error, notfound}.
+    | {error, payinst_not_found}.
 get(PaymentInstitutionID, VS, DomainRevision) ->
     do(fun() ->
         PaymentInstitutionRef = ref(PaymentInstitutionID),
@@ -73,7 +73,7 @@ get(PaymentInstitutionID, VS, DomainRevision) ->
     | {error, term()}.
 withdrawal_providers(#{withdrawal_providers := {value, Providers}}) ->
     {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-withdrawal_providers(PaymentInstitution) ->
+withdrawal_providers(#{withdrawal_providers := {decisions, _}} = PaymentInstitution) ->
     {error, {misconfiguration, {'No withdrawal providers in a given payment institution', PaymentInstitution}}}.
 
 -spec p2p_transfer_providers(payment_institution()) ->
@@ -81,7 +81,7 @@ withdrawal_providers(PaymentInstitution) ->
     | {error, term()}.
 p2p_transfer_providers(#{p2p_providers := {value, Providers}}) ->
     {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-p2p_transfer_providers(PaymentInstitution) ->
+p2p_transfer_providers(#{p2p_providers := {decisions, _}} = PaymentInstitution) ->
     {error, {misconfiguration, {'No p2p providers in a given payment institution', PaymentInstitution}}}.
 
 -spec p2p_inspector(payment_institution()) ->

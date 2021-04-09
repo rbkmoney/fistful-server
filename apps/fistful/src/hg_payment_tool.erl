@@ -34,7 +34,7 @@ test_bank_card_condition(#domain_BankCardCondition{}, _) ->
 % legacy
 test_bank_card_condition_def(
     {payment_system_is, Ps},
-    #domain_BankCard{payment_system = Ps, token_provider = undefined}
+    #domain_BankCard{payment_system_deprecated = Ps, token_provider_deprecated = undefined}
 ) ->
     true;
 test_bank_card_condition_def({payment_system_is, _Ps}, #domain_BankCard{}) ->
@@ -47,8 +47,8 @@ test_bank_card_condition_def({issuer_bank_is, BankRef}, V) ->
     test_issuer_bank_condition(BankRef, V).
 
 test_payment_system_condition(
-    #domain_PaymentSystemCondition{payment_system_is = Ps, token_provider_is = Tp},
-    #domain_BankCard{payment_system = Ps, token_provider = Tp}
+    #domain_PaymentSystemCondition{payment_system_is_deprecated = Ps, token_provider_is_deprecated = Tp},
+    #domain_BankCard{payment_system_deprecated = Ps, token_provider_deprecated = Tp}
 ) ->
     true;
 test_payment_system_condition(#domain_PaymentSystemCondition{}, #domain_BankCard{}) ->
@@ -82,17 +82,17 @@ test_bank_card_patterns(Patterns, BankName) ->
 test_payment_terminal_condition(#domain_PaymentTerminalCondition{definition = Def}, V) ->
     Def =:= undefined orelse test_payment_terminal_condition_def(Def, V).
 
-test_payment_terminal_condition_def({provider_is, V1}, #domain_PaymentTerminal{terminal_type = V2}) ->
+test_payment_terminal_condition_def({provider_is_deprecated, V1}, #domain_PaymentTerminal{terminal_type_deprecated = V2}) ->
     V1 =:= V2.
 
 test_digital_wallet_condition(#domain_DigitalWalletCondition{definition = Def}, V) ->
     Def =:= undefined orelse test_digital_wallet_condition_def(Def, V).
 
-test_digital_wallet_condition_def({provider_is, V1}, #domain_DigitalWallet{provider = V2}) ->
+test_digital_wallet_condition_def({provider_is_deprecated, V1}, #domain_DigitalWallet{provider_deprecated = V2}) ->
     V1 =:= V2.
 
 test_crypto_currency_condition(#domain_CryptoCurrencyCondition{definition = Def}, V) ->
     Def =:= undefined orelse test_crypto_currency_condition_def(Def, V).
 
-test_crypto_currency_condition_def({crypto_currency_is, C1}, C2) ->
+test_crypto_currency_condition_def({crypto_currency_is_deprecated, C1}, C2) ->
     C1 =:= C2.

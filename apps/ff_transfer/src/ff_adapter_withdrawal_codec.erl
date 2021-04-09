@@ -171,7 +171,7 @@ marshal(
     ExpDate = genlib_map:get(exp_date, BankCard),
     {bank_card, #domain_BankCard{
         token = Token,
-        payment_system = PaymentSystem,
+        payment_system_deprecated = PaymentSystem,
         bin = BIN,
         last_digits = LastDigits,
         cardholder_name = CardHolderName,
@@ -188,7 +188,7 @@ marshal(
 ) ->
     {crypto_wallet, #domain_CryptoWallet{
         id = CryptoWalletID,
-        crypto_currency = Currency,
+        crypto_currency_deprecated = Currency,
         destination_tag = maps:get(tag, Data, undefined)
     }};
 marshal(

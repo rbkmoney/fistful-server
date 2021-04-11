@@ -82,7 +82,10 @@ test_bank_card_patterns(Patterns, BankName) ->
 test_payment_terminal_condition(#domain_PaymentTerminalCondition{definition = Def}, V) ->
     Def =:= undefined orelse test_payment_terminal_condition_def(Def, V).
 
-test_payment_terminal_condition_def({provider_is_deprecated, V1}, #domain_PaymentTerminal{terminal_type_deprecated = V2}) ->
+test_payment_terminal_condition_def(
+    {provider_is_deprecated, V1},
+    #domain_PaymentTerminal{terminal_type_deprecated = V2}
+) ->
     V1 =:= V2.
 
 test_digital_wallet_condition(#domain_DigitalWalletCondition{definition = Def}, V) ->

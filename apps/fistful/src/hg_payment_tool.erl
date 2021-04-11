@@ -21,7 +21,7 @@ test_condition({payment_terminal, C}, {payment_terminal, V = #domain_PaymentTerm
     test_payment_terminal_condition(C, V);
 test_condition({digital_wallet, C}, {digital_wallet, V = #domain_DigitalWallet{}}) ->
     test_digital_wallet_condition(C, V);
-test_condition({crypto_currency, C}, {crypto_currency, V}) ->
+test_condition({crypto_currency, C}, {crypto_currency_deprecated, V}) ->
     test_crypto_currency_condition(C, V);
 test_condition(_PaymentTool, _Condition) ->
     false.

@@ -1106,11 +1106,7 @@ construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currenc
 
 %% Quote helpers
 
--spec get_quote(quote_params()) ->
-    {ok, quote()}
-    | {error,
-        create_error()
-        | {route, route_not_found}}.
+-spec get_quote(quote_params()) -> {ok, quote()} | {error, create_error() | {route, route_not_found}}.
 get_quote(Params = #{destination_id := DestinationID, body := Body, wallet_id := WalletID}) ->
     do(fun() ->
         Destination = unwrap(destination, get_destination(DestinationID)),

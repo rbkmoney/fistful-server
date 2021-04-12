@@ -246,12 +246,19 @@ make_varset(Cash, PartyID) ->
     #{
         currency => ?cur(<<"RUB">>),
         cost => Cash,
-        payment_tool =>
-            {bank_card, #domain_BankCard{
-                payment_system = visa
-            }},
+        payment_tool => bank_card(),
         party_id => PartyID
     }.
+
+bank_card() ->
+    {bank_card, #domain_BankCard{
+        token = genlib:bsuuid(),
+        bin = <<"424242">>,
+        last_digits = <<"">>,
+        bank_name = <<"bank">>,
+        payment_system = visa,
+        issuer_country = rus
+    }}.
 
 gather_routes(RoutingRulesTag, PaymentInstitutionID, Varset) ->
     Revision = ff_domain_config:head(),

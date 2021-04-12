@@ -65,6 +65,7 @@ get(PaymentInstitutionID, VS, DomainRevision) ->
     do(fun() ->
         PaymentInstitutionRef = ref(PaymentInstitutionID),
         PaymentInstitution = unwrap(ff_party:compute_payment_institution(PaymentInstitutionRef, VS, DomainRevision)),
+        logger:error("WOLOLO================>~nComputed PaymentInstitution=~p~n", [PaymentInstitution]),
         decode(PaymentInstitutionID, PaymentInstitution)
     end).
 
@@ -73,7 +74,7 @@ get(PaymentInstitutionID, VS, DomainRevision) ->
     | {error, term()}.
 withdrawal_providers(#{withdrawal_providers := {value, Providers}}) ->
     {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-withdrawal_providers(#{withdrawal_providers := {decisions, _}} = PaymentInstitution) ->
+withdrawal_providers(#{withdrawal_providers := _} = PaymentInstitution) ->
     {error, {misconfiguration, {'No withdrawal providers in a given payment institution', PaymentInstitution}}}.
 
 -spec p2p_transfer_providers(payment_institution()) ->
@@ -81,16 +82,16 @@ withdrawal_providers(#{withdrawal_providers := {decisions, _}} = PaymentInstitut
     | {error, term()}.
 p2p_transfer_providers(#{p2p_providers := {value, Providers}}) ->
     {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-p2p_transfer_providers(#{p2p_providers := {decisions, _}} = PaymentInstitution) ->
+p2p_transfer_providers(#{p2p_providers := _} = PaymentInstitution) ->
     {error, {misconfiguration, {'No p2p providers in a given payment institution', PaymentInstitution}}}.
 
 -spec p2p_inspector(payment_institution()) ->
     {ok, p2p_inspector:inspector_ref()}
     | {error, term()}.
-p2p_inspector(#{p2p_inspector := InspectorSelector} = PS) when InspectorSelector =:= undefined ->
-    {error, {misconfiguration, {'No p2p inspector in a given payment_institution', PS}}};
-p2p_inspector(#{p2p_inspector := InspectorRef}) ->
-    {ok, InspectorRef}.
+p2p_inspector(#{p2p_inspector := {value, InspectorRef}}) ->
+    {ok, InspectorRef};
+p2p_inspector(#{p2p_inspector := InspectorSelector} = PaymentInstitution) when InspectorSelector =:= undefined ->
+    {error, {misconfiguration, {'No p2p inspector in a given payment_institution', PaymentInstitution}}}.
 
 -spec system_accounts(payment_institution(), domain_revision()) ->
     {ok, system_accounts()}
@@ -98,7 +99,7 @@ p2p_inspector(#{p2p_inspector := InspectorRef}) ->
 system_accounts(PaymentInstitution, DomainRevision) ->
     #{
         identity := Identity,
-        system_accounts := SystemAccountSetRef
+        system_accounts := {value, SystemAccountSetRef}
     } = PaymentInstitution,
     do(fun() ->
         SystemAccountSet = unwrap(ff_domain_config:object(DomainRevision, {system_account_set, SystemAccountSetRef})),

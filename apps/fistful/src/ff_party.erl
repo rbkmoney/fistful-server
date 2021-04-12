@@ -964,24 +964,108 @@ validate_attempt_limit(AttemptLimit) ->
 
 -spec encode_varset(hg_selector:varset()) -> dmsl_payment_processing_thrift:'Varset'().
 encode_varset(Varset) ->
-    #payproc_Varset{
+        logger:error("WOLOLO==========>~nEncode VS=~p~n", [Varset]),
+        PayoutMethod = genlib_map:get(payout_method, Varset),
+        PaymentTool = genlib_map:get(payment_tool, Varset),
+        PreparedMethod = prepare_payment_method_var(genlib_map:get(payout_method, Varset)),
+        logger:error("WOLOLO==========>~nPreparedMethod=~p~n", [PreparedMethod]),
+    Res = #payproc_Varset{
         currency = genlib_map:get(currency, Varset),
         amount = genlib_map:get(cost, Varset),
         wallet_id = genlib_map:get(wallet_id, Varset),
-        payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset)),
+        payment_tool = prepare_payment_tool_var(PayoutMethod, PaymentTool),
+        payout_method = PreparedMethod,
         p2p_tool = genlib_map:get(p2p_tool, Varset),
         party_id = genlib_map:get(party_id, Varset)
-    }.
+    },
+    logger:error("==========>WOLOLO~nEncoded result VS=~p~n", [Res]),
+    Res.
 
--spec encode_payment_method(ff_destination:resource() | undefined) ->
+prepare_payment_tool_var(_PaymentMethodRef, PaymentTool) when PaymentTool /= undefined ->
+    PaymentTool;
+prepare_payment_tool_var(PaymentMethodRef = #domain_PaymentMethodRef{}, _PaymentTool) ->
+    create_from_method(PaymentMethodRef);
+prepare_payment_tool_var(undefined, undefined) ->
+    undefined.
+
+-spec create_from_method(dmsl_domain_thrift:'PaymentMethodRef'()) -> dmsl_domain_thrift:'PaymentTool'().
+create_from_method(#domain_PaymentMethodRef{id = {empty_cvv_bank_card_deprecated, PaymentSystem}}) ->
+    {bank_card, #domain_BankCard{
+        payment_system = PaymentSystem,
+        token = <<"">>,
+        bin = <<"">>,
+        last_digits = <<"">>,
+        is_cvv_empty = true
+    }};
+create_from_method(#domain_PaymentMethodRef{id = {bank_card_deprecated, PaymentSystem}}) ->
+    {bank_card, #domain_BankCard{
+        payment_system = PaymentSystem,
+        token = <<"">>,
+        bin = <<"">>,
+        last_digits = <<"">>
+    }};
+create_from_method(#domain_PaymentMethodRef{
+    id =
+        {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
+            payment_system = PaymentSystem,
+            token_provider = TokenProvider,
+            tokenization_method = TokenizationMethod
+        }}
+}) ->
+    {bank_card, #domain_BankCard{
+        payment_system = PaymentSystem,
+        token = <<"">>,
+        bin = <<"">>,
+        last_digits = <<"">>,
+        token_provider = TokenProvider,
+        tokenization_method = TokenizationMethod
+    }};
+create_from_method(#domain_PaymentMethodRef{
+    id =
+        {bank_card, #domain_BankCardPaymentMethod{
+            payment_system = PaymentSystem,
+            is_cvv_empty = IsCVVEmpty,
+            token_provider = TokenProvider,
+            tokenization_method = TokenizationMethod
+        }}
+}) ->
+    {bank_card, #domain_BankCard{
+        payment_system = PaymentSystem,
+        token = <<"">>,
+        bin = <<"">>,
+        last_digits = <<"">>,
+        token_provider = TokenProvider,
+        is_cvv_empty = IsCVVEmpty,
+        tokenization_method = TokenizationMethod
+    }};
+create_from_method(#domain_PaymentMethodRef{id = {payment_terminal, TerminalType}}) ->
+    {payment_terminal, #domain_PaymentTerminal{terminal_type = TerminalType}};
+create_from_method(#domain_PaymentMethodRef{id = {digital_wallet, Provider}}) ->
+    {digital_wallet, #domain_DigitalWallet{
+        provider = Provider,
+        id = <<"">>
+    }};
+create_from_method(#domain_PaymentMethodRef{id = {crypto_currency, CC}}) ->
+    {crypto_currency, CC};
+create_from_method(#domain_PaymentMethodRef{id = {mobile, Operator}}) ->
+    {mobile_commerce, #domain_MobileCommerce{
+        operator = Operator,
+        phone = #domain_MobilePhone{
+            cc = <<"">>,
+            ctn = <<"">>
+        }
+    }}.
+
+-spec prepare_payment_method_var(ff_destination:resource() | undefined) ->
     dmsl_domain_thrift:'PaymentMethodRef'() | undefined.
-encode_payment_method(undefined) ->
+prepare_payment_method_var(undefined) ->
     undefined;
-encode_payment_method({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->
+prepare_payment_method_var({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->
     #domain_PaymentMethodRef{
-        id = {bank_card_deprecated, PaymentSystem}
+        id = {bank_card, PaymentSystem}
     };
-encode_payment_method({crypto_currency, CryptoCurrency}) ->
+prepare_payment_method_var({crypto_currency, CryptoCurrency}) ->
     #domain_PaymentMethodRef{
         id = {crypto_currency, CryptoCurrency}
-    }.
+   }.
+

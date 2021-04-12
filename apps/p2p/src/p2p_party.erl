@@ -13,7 +13,7 @@
     timestamp := ff_time:timestamp_ms()
 }.
 
--type varset() :: hg_selector:varset().
+-type varset() :: ff_varset:varset().
 -type varset_params() :: #{
     cash := ff_cash:cash(),
     party_id := ff_party:id(),

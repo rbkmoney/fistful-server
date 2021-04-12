@@ -226,7 +226,7 @@
 -type contract_params() :: p2p_party:contract_params().
 -type deadline() :: p2p_session:deadline().
 -type metadata() :: ff_entity_context:md().
--type party_varset() :: hg_selector:varset().
+-type party_varset() :: ff_varset:varset().
 -type provider_ref() :: ff_p2p_provider:provider_ref().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().

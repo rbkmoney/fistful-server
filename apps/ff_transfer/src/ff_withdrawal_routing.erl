@@ -22,7 +22,7 @@
 
 -type identity() :: ff_identity:identity_state().
 -type domain_revision() :: ff_domain_config:revision().
--type party_varset() :: hg_selector:varset().
+-type party_varset() :: ff_varset:varset().
 
 -type provider_ref() :: ff_payouts_provider:provider_ref().
 -type provider_id() :: ff_payouts_provider:id().

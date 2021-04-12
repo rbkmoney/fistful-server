@@ -5,7 +5,7 @@
 -type id() :: dmsl_domain_thrift:'ObjectID'().
 
 -type domain_revision() :: ff_domain_config:revision().
--type party_varset() :: hg_selector:varset().
+-type party_varset() :: ff_varset:varset().
 
 -type payment_institution() :: #{
     id := id(),
@@ -64,6 +64,7 @@ ref(ID) ->
 get(PaymentInstitutionID, VS, DomainRevision) ->
     do(fun() ->
         PaymentInstitutionRef = ref(PaymentInstitutionID),
+        logger:error("WOLOLO================>compute institution..~nVS=~p~n", [VS]),
         PaymentInstitution = unwrap(ff_party:compute_payment_institution(PaymentInstitutionRef, VS, DomainRevision)),
         logger:error("WOLOLO================>~nComputed PaymentInstitution=~p~n", [PaymentInstitution]),
         decode(PaymentInstitutionID, PaymentInstitution)

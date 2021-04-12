@@ -259,14 +259,14 @@ get_identity_payment_institution_id(Identity) ->
 -spec get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) -> Result when
     PartyID :: id(),
     ContractID :: contract_id(),
-    Varset :: hg_selector:varset(),
+    Varset :: ff_varset:varset(),
     Timestamp :: timestamp(),
     PartyRevision :: revision(),
     DomainRevision :: domain_revision(),
     Result :: {ok, terms()} | {error, Error},
     Error :: get_contract_terms_error().
 get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) ->
-    DomainVarset = encode_varset(Varset),
+    DomainVarset = ff_varset:encode(Varset),
     TimestampStr = ff_time:to_rfc3339(Timestamp),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_contract_terms(
@@ -294,11 +294,11 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
 
 -spec compute_payment_institution(PaymentInstitutionRef, Varset, DomainRevision) -> Result when
     PaymentInstitutionRef :: payinst_ref(),
-    Varset :: hg_selector:varset(),
+    Varset :: ff_varset:varset(),
     DomainRevision :: domain_revision(),
     Result :: {ok, payment_institution()} | {error, payinst_not_found}.
 compute_payment_institution(PaymentInstitutionRef, Varset, DomainRevision) ->
-    DomainVarset = encode_varset(Varset),
+    DomainVarset = ff_varset:encode(Varset),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_payment_institution(
         PaymentInstitutionRef,
@@ -316,11 +316,11 @@ compute_payment_institution(PaymentInstitutionRef, Varset, DomainRevision) ->
 
 -spec compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) -> Result when
     RoutingRulesetRef :: routing_ruleset_ref(),
-    Varset :: hg_selector:varset(),
+    Varset :: ff_varset:varset(),
     DomainRevision :: domain_revision(),
     Result :: {ok, routing_ruleset()} | {error, ruleset_not_found}.
 compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
-    DomainVarset = encode_varset(Varset),
+    DomainVarset = ff_varset:encode(Varset),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_routing_ruleset(
         RoutingRulesetRef,
@@ -338,11 +338,11 @@ compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
 
 -spec compute_provider(ProviderRef, Varset, DomainRevision) -> Result when
     ProviderRef :: provider_ref(),
-    Varset :: hg_selector:varset(),
+    Varset :: ff_varset:varset(),
     DomainRevision :: domain_revision(),
     Result :: {ok, provider()} | {error, provider_not_found}.
 compute_provider(ProviderRef, Varset, DomainRevision) ->
-    DomainVarset = encode_varset(Varset),
+    DomainVarset = ff_varset:encode(Varset),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_provider(
         ProviderRef,
@@ -361,11 +361,11 @@ compute_provider(ProviderRef, Varset, DomainRevision) ->
 -spec compute_provider_terminal_terms(ProviderRef, TerminalRef, Varset, DomainRevision) -> Result when
     ProviderRef :: provider_ref(),
     TerminalRef :: terminal_ref(),
-    Varset :: hg_selector:varset(),
+    Varset :: ff_varset:varset(),
     DomainRevision :: domain_revision(),
     Result :: {ok, provision_term_set()} | {error, provider_not_found} | {error, terminal_not_found}.
 compute_provider_terminal_terms(ProviderRef, TerminalRef, Varset, DomainRevision) ->
-    DomainVarset = encode_varset(Varset),
+    DomainVarset = ff_varset:encode(Varset),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_provider_terminal_terms(
         ProviderRef,
@@ -959,113 +959,3 @@ validate_attempt_limit(AttemptLimit) when AttemptLimit > 0 ->
     {ok, valid};
 validate_attempt_limit(AttemptLimit) ->
     {error, {terms_violation, {attempt_limit, AttemptLimit}}}.
-
-%% Varset stuff
-
--spec encode_varset(hg_selector:varset()) -> dmsl_payment_processing_thrift:'Varset'().
-encode_varset(Varset) ->
-        logger:error("WOLOLO==========>~nEncode VS=~p~n", [Varset]),
-        PayoutMethod = genlib_map:get(payout_method, Varset),
-        PaymentTool = genlib_map:get(payment_tool, Varset),
-        PreparedMethod = prepare_payment_method_var(genlib_map:get(payout_method, Varset)),
-        logger:error("WOLOLO==========>~nPreparedMethod=~p~n", [PreparedMethod]),
-    Res = #payproc_Varset{
-        currency = genlib_map:get(currency, Varset),
-        amount = genlib_map:get(cost, Varset),
-        wallet_id = genlib_map:get(wallet_id, Varset),
-        payment_tool = prepare_payment_tool_var(PayoutMethod, PaymentTool),
-        payout_method = PreparedMethod,
-        p2p_tool = genlib_map:get(p2p_tool, Varset),
-        party_id = genlib_map:get(party_id, Varset)
-    },
-    logger:error("==========>WOLOLO~nEncoded result VS=~p~n", [Res]),
-    Res.
-
-prepare_payment_tool_var(_PaymentMethodRef, PaymentTool) when PaymentTool /= undefined ->
-    PaymentTool;
-prepare_payment_tool_var(PaymentMethodRef = #domain_PaymentMethodRef{}, _PaymentTool) ->
-    create_from_method(PaymentMethodRef);
-prepare_payment_tool_var(undefined, undefined) ->
-    undefined.
-
--spec create_from_method(dmsl_domain_thrift:'PaymentMethodRef'()) -> dmsl_domain_thrift:'PaymentTool'().
-create_from_method(#domain_PaymentMethodRef{id = {empty_cvv_bank_card_deprecated, PaymentSystem}}) ->
-    {bank_card, #domain_BankCard{
-        payment_system = PaymentSystem,
-        token = <<"">>,
-        bin = <<"">>,
-        last_digits = <<"">>,
-        is_cvv_empty = true
-    }};
-create_from_method(#domain_PaymentMethodRef{id = {bank_card_deprecated, PaymentSystem}}) ->
-    {bank_card, #domain_BankCard{
-        payment_system = PaymentSystem,
-        token = <<"">>,
-        bin = <<"">>,
-        last_digits = <<"">>
-    }};
-create_from_method(#domain_PaymentMethodRef{
-    id =
-        {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
-            payment_system = PaymentSystem,
-            token_provider = TokenProvider,
-            tokenization_method = TokenizationMethod
-        }}
-}) ->
-    {bank_card, #domain_BankCard{
-        payment_system = PaymentSystem,
-        token = <<"">>,
-        bin = <<"">>,
-        last_digits = <<"">>,
-        token_provider = TokenProvider,
-        tokenization_method = TokenizationMethod
-    }};
-create_from_method(#domain_PaymentMethodRef{
-    id =
-        {bank_card, #domain_BankCardPaymentMethod{
-            payment_system = PaymentSystem,
-            is_cvv_empty = IsCVVEmpty,
-            token_provider = TokenProvider,
-            tokenization_method = TokenizationMethod
-        }}
-}) ->
-    {bank_card, #domain_BankCard{
-        payment_system = PaymentSystem,
-        token = <<"">>,
-        bin = <<"">>,
-        last_digits = <<"">>,
-        token_provider = TokenProvider,
-        is_cvv_empty = IsCVVEmpty,
-        tokenization_method = TokenizationMethod
-    }};
-create_from_method(#domain_PaymentMethodRef{id = {payment_terminal, TerminalType}}) ->
-    {payment_terminal, #domain_PaymentTerminal{terminal_type = TerminalType}};
-create_from_method(#domain_PaymentMethodRef{id = {digital_wallet, Provider}}) ->
-    {digital_wallet, #domain_DigitalWallet{
-        provider = Provider,
-        id = <<"">>
-    }};
-create_from_method(#domain_PaymentMethodRef{id = {crypto_currency, CC}}) ->
-    {crypto_currency, CC};
-create_from_method(#domain_PaymentMethodRef{id = {mobile, Operator}}) ->
-    {mobile_commerce, #domain_MobileCommerce{
-        operator = Operator,
-        phone = #domain_MobilePhone{
-            cc = <<"">>,
-            ctn = <<"">>
-        }
-    }}.
-
--spec prepare_payment_method_var(ff_destination:resource() | undefined) ->
-    dmsl_domain_thrift:'PaymentMethodRef'() | undefined.
-prepare_payment_method_var(undefined) ->
-    undefined;
-prepare_payment_method_var({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->
-    #domain_PaymentMethodRef{
-        id = {bank_card, PaymentSystem}
-    };
-prepare_payment_method_var({crypto_currency, CryptoCurrency}) ->
-    #domain_PaymentMethodRef{
-        id = {crypto_currency, CryptoCurrency}
-   }.
-

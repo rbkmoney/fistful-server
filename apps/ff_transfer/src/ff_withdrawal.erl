@@ -262,7 +262,7 @@
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 -type terms() :: ff_party:terms().
--type party_varset() :: hg_selector:varset().
+-type party_varset() :: ff_varset:varset().
 -type metadata() :: ff_entity_context:md().
 -type resource_descriptor() :: ff_destination:resource_id().
 

@@ -299,7 +299,6 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
     Result :: {ok, payment_institution()} | {error, payinst_not_found}.
 compute_payment_institution(PaymentInstitutionRef, Varset, DomainRevision) ->
     DomainVarset = ff_varset:encode(Varset),
-    logger:error("========================>~nVARSET AFTER ENCODE=~p~n",[DomainVarset]),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_payment_institution(
         PaymentInstitutionRef,

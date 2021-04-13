@@ -609,7 +609,7 @@ domain_config(Options, C) ->
                                 {condition,
                                     {payment_tool,
                                         {crypto_currency, #domain_CryptoCurrencyCondition{
-                                            definition = {crypto_currency_is, litecoin}
+                                            definition = {crypto_currency_is_deprecated, litecoin}
                                         }}}},
                             then_ = {value, [?prv(3)]}
                         },
@@ -791,7 +791,7 @@ default_termset(Options) ->
                                                 {bank_card, #domain_BankCardCondition{
                                                     definition =
                                                         {payment_system, #domain_PaymentSystemCondition{
-                                                            payment_system_is = visa
+                                                            payment_system_is_deprecated = visa
                                                         }}
                                                 }}}}
                                     ])},
@@ -824,7 +824,7 @@ default_termset(Options) ->
                                                 {bank_card, #domain_BankCardCondition{
                                                     definition =
                                                         {payment_system, #domain_PaymentSystemCondition{
-                                                            payment_system_is = visa
+                                                            payment_system_is_deprecated = visa
                                                         }}
                                                 }}}}
                                     ])},
@@ -857,7 +857,7 @@ default_termset(Options) ->
                                                 {bank_card, #domain_BankCardCondition{
                                                     definition =
                                                         {payment_system, #domain_PaymentSystemCondition{
-                                                            payment_system_is = visa
+                                                            payment_system_is_deprecated = visa
                                                         }}
                                                 }}}}
                                     ])},
@@ -920,14 +920,14 @@ default_termset(Options) ->
                                         {bank_card, #domain_BankCardCondition{
                                             definition =
                                                 {payment_system, #domain_PaymentSystemCondition{
-                                                    payment_system_is = visa
+                                                    payment_system_is_deprecated = visa
                                                 }}
                                         }},
                                     receiver_is =
                                         {bank_card, #domain_BankCardCondition{
                                             definition =
                                                 {payment_system, #domain_PaymentSystemCondition{
-                                                    payment_system_is = visa
+                                                    payment_system_is_deprecated = visa
                                                 }}
                                         }}
                                 }}}
@@ -1012,14 +1012,14 @@ default_termset(Options) ->
                                                         {bank_card, #domain_BankCardCondition{
                                                             definition =
                                                                 {payment_system, #domain_PaymentSystemCondition{
-                                                                    payment_system_is = visa
+                                                                    payment_system_is_deprecated = visa
                                                                 }}
                                                         }},
                                                     receiver_is =
                                                         {bank_card, #domain_BankCardCondition{
                                                             definition =
                                                                 {payment_system, #domain_PaymentSystemCondition{
-                                                                    payment_system_is = visa
+                                                                    payment_system_is_deprecated = visa
                                                                 }}
                                                         }}
                                                 }}},
@@ -1074,14 +1074,14 @@ default_termset(Options) ->
                                                         {bank_card, #domain_BankCardCondition{
                                                             definition =
                                                                 {payment_system, #domain_PaymentSystemCondition{
-                                                                    payment_system_is = visa
+                                                                    payment_system_is_deprecated = visa
                                                                 }}
                                                         }},
                                                     receiver_is =
                                                         {bank_card, #domain_BankCardCondition{
                                                             definition =
                                                                 {payment_system, #domain_PaymentSystemCondition{
-                                                                    payment_system_is = nspkmir
+                                                                    payment_system_is_deprecated = nspkmir
                                                                 }}
                                                         }}
                                                 }}},

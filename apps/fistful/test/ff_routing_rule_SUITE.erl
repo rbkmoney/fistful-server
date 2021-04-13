@@ -248,7 +248,7 @@ make_varset(Cash, PartyID) ->
         cost => Cash,
         payment_tool =>
             {bank_card, #domain_BankCard{
-                payment_system = visa
+                payment_system_deprecated = visa
             }},
         party_id => PartyID
     }.

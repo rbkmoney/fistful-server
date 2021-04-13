@@ -64,9 +64,7 @@ ref(ID) ->
 get(PaymentInstitutionID, VS, DomainRevision) ->
     do(fun() ->
         PaymentInstitutionRef = ref(PaymentInstitutionID),
-        logger:error("WOLOLO================>compute institution..~nVS=~p~n", [VS]),
         PaymentInstitution = unwrap(ff_party:compute_payment_institution(PaymentInstitutionRef, VS, DomainRevision)),
-        logger:error("WOLOLO================>~nComputed PaymentInstitution=~p~n", [PaymentInstitution]),
         decode(PaymentInstitutionID, PaymentInstitution)
     end).
 
@@ -76,7 +74,7 @@ get(PaymentInstitutionID, VS, DomainRevision) ->
 withdrawal_providers(#{withdrawal_providers := {value, Providers}}) ->
     {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
 withdrawal_providers(#{withdrawal_providers := _} = PaymentInstitution) ->
-    {error, {misconfiguration, {'No withdrawal providers in a given payment institution', PaymentInstitution}}}.
+    {error, {misconfiguration, {'No reduced withdrawal providers in a given payment institution', PaymentInstitution}}}.
 
 -spec p2p_transfer_providers(payment_institution()) ->
     {ok, [ff_payouts_provider:id()]}
@@ -84,7 +82,7 @@ withdrawal_providers(#{withdrawal_providers := _} = PaymentInstitution) ->
 p2p_transfer_providers(#{p2p_providers := {value, Providers}}) ->
     {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
 p2p_transfer_providers(#{p2p_providers := _} = PaymentInstitution) ->
-    {error, {misconfiguration, {'No p2p providers in a given payment institution', PaymentInstitution}}}.
+    {error, {misconfiguration, {'No reduced p2p providers in a given payment institution', PaymentInstitution}}}.
 
 -spec p2p_inspector(payment_institution()) ->
     {ok, p2p_inspector:inspector_ref()}
@@ -92,7 +90,7 @@ p2p_transfer_providers(#{p2p_providers := _} = PaymentInstitution) ->
 p2p_inspector(#{p2p_inspector := {value, InspectorRef}}) ->
     {ok, InspectorRef};
 p2p_inspector(#{p2p_inspector := InspectorSelector} = PaymentInstitution) when InspectorSelector =:= undefined ->
-    {error, {misconfiguration, {'No p2p inspector in a given payment_institution', PaymentInstitution}}}.
+    {error, {misconfiguration, {'No reduced p2p inspector in a given payment_institution', PaymentInstitution}}}.
 
 -spec system_accounts(payment_institution(), domain_revision()) ->
     {ok, system_accounts()}

@@ -289,9 +289,7 @@ withdrawal_terminal(?trm(6) = Ref) ->
         data = #domain_Terminal{
             name = <<"WithdrawalTerminal">>,
             description = <<"Withdrawal terminal">>,
-            terms = #domain_ProvisionTermSet{
-                wallet = undefined
-            }
+            terms = #domain_ProvisionTermSet{}
         }
     }};
 withdrawal_terminal(?trm(7) = Ref) ->

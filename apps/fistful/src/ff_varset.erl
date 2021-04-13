@@ -26,12 +26,14 @@
 
 -spec encode(varset()) -> encoded_varset().
 encode(Varset) ->
+    PaymentTool = genlib_map:get(payment_tool, Varset),
     #payproc_Varset{
         currency = genlib_map:get(currency, Varset),
         amount = genlib_map:get(cost, Varset),
         wallet_id = genlib_map:get(wallet_id, Varset),
         p2p_tool = genlib_map:get(p2p_tool, Varset),
-        payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset)),
+        payment_tool = PaymentTool,
+        payment_method = encode_payment_method(PaymentTool),
         identification_level = genlib_map:get(identification_level, Varset),
         party_id = genlib_map:get(party_id, Varset)
     }.

@@ -27,14 +27,23 @@
 -spec encode(varset()) -> encoded_varset().
 encode(Varset) ->
     #payproc_Varset{
-        category = genlib_map:get(category, Varset),
         currency = genlib_map:get(currency, Varset),
         amount = genlib_map:get(cost, Varset),
-        payout_method = genlib_map:get(payout_method, Varset),
+        payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset)),
         wallet_id = genlib_map:get(wallet_id, Varset),
         p2p_tool = genlib_map:get(p2p_tool, Varset),
-        payment_tool = genlib_map:get(payment_tool, Varset),
-        identification_level = genlib_map:get(identification_level, Varset),
-        party_id = genlib_map:get(party_id, Varset),
-        shop_id = genlib_map:get(shop_id, Varset)
+        party_id = genlib_map:get(party_id, Varset)
+    }.
+
+-spec encode_payment_method(ff_destination:resource() | undefined) ->
+    dmsl_domain_thrift:'PaymentMethodRef'() | undefined.
+encode_payment_method(undefined) ->
+    undefined;
+encode_payment_method({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->
+    #domain_PaymentMethodRef{
+        id = {bank_card_deprecated, PaymentSystem}
+    };
+encode_payment_method({crypto_currency, CryptoCurrency}) ->
+    #domain_PaymentMethodRef{
+        id = {crypto_currency, CryptoCurrency}
     }.

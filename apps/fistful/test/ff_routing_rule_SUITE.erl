@@ -256,7 +256,7 @@ bank_card() ->
         bin = <<"424242">>,
         last_digits = <<"">>,
         bank_name = <<"bank">>,
-        payment_system = visa,
+        payment_system_deprecated = visa,
         issuer_country = rus
     }}.
 

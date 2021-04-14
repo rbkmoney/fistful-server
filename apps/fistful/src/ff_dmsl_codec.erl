@@ -134,7 +134,7 @@ unmarshal(
         payment_tool =
             {bank_card, #domain_BankCard{
                 token = Token,
-                payment_system = PaymentSystem,
+                payment_system_deprecated = PaymentSystem,
                 bin = Bin,
                 last_digits = LastDigits,
                 exp_date = ExpDate,
@@ -231,7 +231,7 @@ marshal(bank_card, BankCard) ->
         token = ff_resource:token(BankCard),
         bin = ff_resource:bin(BankCard),
         last_digits = ff_resource:masked_pan(BankCard),
-        payment_system = ff_resource:payment_system(BankCard),
+        payment_system_deprecated = ff_resource:payment_system(BankCard),
         issuer_country = ff_resource:country_code(BankCard),
         bank_name = ff_resource:bank_name(BankCard),
         exp_date = maybe_marshal(exp_date, ExpDate),

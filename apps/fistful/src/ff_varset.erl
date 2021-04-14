@@ -42,11 +42,11 @@ encode(Varset) ->
     dmsl_domain_thrift:'PaymentMethodRef'() | undefined.
 encode_payment_method(undefined) ->
     undefined;
-encode_payment_method({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->
+encode_payment_method({bank_card, #domain_BankCard{payment_system_deprecated = PaymentSystem}}) ->
     #domain_PaymentMethodRef{
         id = {bank_card_deprecated, PaymentSystem}
     };
-encode_payment_method({crypto_currency, CryptoCurrency}) ->
+encode_payment_method({crypto_currency_deprecated, CryptoCurrency}) ->
     #domain_PaymentMethodRef{
-        id = {crypto_currency, CryptoCurrency}
+        id = {crypto_currency_deprecated, CryptoCurrency}
     }.

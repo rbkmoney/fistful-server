@@ -1105,20 +1105,16 @@ construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
         token = maps:get(token, ResourceBankCard),
         bin = maps:get(bin, ResourceBankCard),
         last_digits = maps:get(masked_pan, ResourceBankCard),
-        payment_system = maps:get(payment_system, ResourceBankCard),
+        payment_system_deprecated = maps:get(payment_system, ResourceBankCard),
         issuer_country = maps:get(iso_country_code, ResourceBankCard, undefined),
         bank_name = maps:get(bank_name, ResourceBankCard, undefined)
     }};
 construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currency, _}}}}) ->
-    {crypto_currency, Currency}.
+    {crypto_currency_deprecated, Currency}.
 
 %% Quote helpers
 
--spec get_quote(quote_params()) ->
-    {ok, quote()}
-    | {error,
-        create_error()
-        | {route, route_not_found}}.
+-spec get_quote(quote_params()) -> {ok, quote()} | {error, create_error() | {route, route_not_found}}.
 get_quote(Params = #{destination_id := DestinationID, body := Body, wallet_id := WalletID}) ->
     do(fun() ->
         Destination = unwrap(destination, get_destination(DestinationID)),

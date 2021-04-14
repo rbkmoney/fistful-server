@@ -505,15 +505,15 @@
                 #domain_PaymentMethodRef{
                     id =
                         {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
-                            payment_system = mastercard,
-                            token_provider = applepay
+                            payment_system_deprecated = mastercard,
+                            token_provider_deprecated = applepay
                         }}
                 },
                 #domain_PaymentMethodRef{
                     id =
                         {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
-                            payment_system = visa,
-                            token_provider = applepay
+                            payment_system_deprecated = visa,
+                            token_provider_deprecated = applepay
                         }}
                 }
             ])}

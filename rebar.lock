@@ -98,7 +98,7 @@
        {ref,"9b980b7f9ce09b6a136fe5a23d404d1b903f3061"}},
   0},
  {<<"jose">>,{pkg,<<"jose">>,<<"1.11.1">>},0},
- {<<"jsx">>,{pkg,<<"jsx">>,<<"3.0.0">>},0},
+ {<<"jsx">>,{pkg,<<"jsx">>,<<"3.0.0">>},1},
  {<<"lechiffre">>,
   {git,"https://github.com/rbkmoney/lechiffre.git",
        {ref,"a9ea635b9db03ec58e7cb2f015f124aa9edf0c4b"}},

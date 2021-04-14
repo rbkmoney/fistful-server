@@ -58,7 +58,7 @@ format:
 	$(REBAR) fmt -w
 
 dialyze: submodules
-	$(REBAR) as test dialyzer
+	$(REBAR) dialyzer
 
 plt_update:
 	$(REBAR) dialyzer -u true -s false
@@ -77,6 +77,3 @@ distclean:
 # CALL_W_CONTAINER
 test: submodules
 	$(REBAR) do eunit, ct
-
-test.%: apps/hellgate/test/hg_%_tests_SUITE.erl
-	$(REBAR) ct --suite=$^

@@ -172,19 +172,6 @@ services:
       timeout: 1s
       retries: 10
 
-  bender:
-    image: dr2.rbkmoney.com/rbkmoney/bender:cd0ee8faae41f22a40ea119337be2a842e3e9cd8
-    command: /opt/bender/bin/bender foreground
-    volumes:
-      - ./test/log/bender:/var/log/bender
-    healthcheck:
-      test: "curl http://localhost:8022/"
-      interval: 5s
-      timeout: 1s
-      retries: 20
-    depends_on:
-      - machinegun
-
   shumway-db:
     image: dr2.rbkmoney.com/rbkmoney/postgres:9.6
     environment:
@@ -201,37 +188,5 @@ services:
       interval: 5s
       timeout: 1s
       retries: 10
-
-  fistful-magista:
-    image: dr2.rbkmoney.com/rbkmoney/fistful-magista:ae8a1ccdddcf75827251d9011f4f340baaaeafa8
-    restart: always
-    entrypoint:
-      - java
-      - -Xmx256m
-      - -jar
-      - /opt/fistful-magista/fistful-magista.jar
-      - --spring.datasource.url=jdbc:postgresql://ffmagista-db:5432/ffmagista
-      - --spring.datasource.username=postgres
-      - --withdrawal.polling.url=http://fistful-server:8022/v1/eventsink/withdrawal
-      - --identity.polling.url=http://fistful-server:8022/v1/eventsink/identity
-      - --wallet.polling.url=http://fistful-server:8022/v1/eventsink/wallet
-    depends_on:
-      - ffmagista-db
-    healthcheck:
-      test: "curl http://localhost:8022/"
-      interval: 5s
-      timeout: 1s
-      retries: 10
-    environment:
-      - SPRING_DATASOURCE_PASSWORD=postgres
-      - SERVICE_NAME=ffmagista
-
-  ffmagista-db:
-    image: dr2.rbkmoney.com/rbkmoney/postgres:9.6
-    environment:
-      - POSTGRES_DB=ffmagista
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - SERVICE_NAME=ffmagista-db
 
 EOF

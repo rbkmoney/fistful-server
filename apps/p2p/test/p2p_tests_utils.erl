@@ -10,7 +10,7 @@
 
 -type config() :: ct_helper:config().
 -type cash() :: ff_cash:cash().
--type token() :: binary().
+-type token() :: tuple() | binary().
 -type prepared_ids() :: #{
     identity_id => ff_identity:id(),
     party_id => ff_party:id(),

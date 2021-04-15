@@ -209,11 +209,11 @@ adjustment_sequence_test(C) ->
             change => {change_status, succeeded}
         })
     end,
-    MakeFailed(),
-    MakeSucceeded(),
-    MakeFailed(),
-    MakeSucceeded(),
-    MakeFailed().
+    _ = MakeFailed(),
+    _ = MakeSucceeded(),
+    _ = MakeFailed(),
+    _ = MakeSucceeded(),
+    _ = MakeFailed().
 
 -spec adjustment_idempotency_test(config()) -> test_return().
 adjustment_idempotency_test(C) ->

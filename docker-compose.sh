@@ -7,17 +7,15 @@ services:
     image: ${BUILD_IMAGE}
     volumes:
       - .:$PWD
-      - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/config/private.pem
-      - ./apps/wapi/var/keys/wapi/jwk.publ.json:/opt/wapi/config/jwk.publ.json
-      - ./apps/wapi/var/keys/wapi/jwk.priv.json:/opt/wapi/config/jwk.priv.json
-      - ./apps/wapi/var/keys/wapi/enc.1.priv.json:/opt/wapi/config/enc.1.priv.json
-      - ./apps/wapi/var/keys/wapi/sig.1.priv.json:/opt/wapi/config/sig.1.priv.json
+      - ./test/${SERVICE_NAME}/private.pem:/opt/${SERVICE_NAME}/config/private.pem
+      - ./test/${SERVICE_NAME}/jwk.publ.json:/opt/${SERVICE_NAME}/config/jwk.publ.json
+      - ./test/${SERVICE_NAME}/jwk.priv.json:/opt/${SERVICE_NAME}/config/jwk.priv.json
+      - ./test/${SERVICE_NAME}/enc.1.priv.json:/opt/${SERVICE_NAME}/config/enc.1.priv.json
+      - ./test/${SERVICE_NAME}/sig.1.priv.json:/opt/${SERVICE_NAME}/config/sig.1.priv.json
       - $HOME/.cache:/home/$UNAME/.cache
     working_dir: $PWD
     command: /sbin/init
     depends_on:
-      wapi-pcidss:
-        condition: service_healthy
       hellgate:
         condition: service_healthy
       identification:
@@ -30,26 +28,6 @@ services:
         condition: service_healthy
       adapter-mocketbank:
         condition: service_healthy
-
-  wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:9ad9bc94d13ad04a594963a64701226b51560f5b
-    command: /opt/wapi/bin/wapi foreground
-    volumes:
-      - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
-      - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
-      - ./apps/wapi/var/keys/wapi/jwk.publ.json:/opt/wapi/var/keys/wapi/jwk.publ.json
-      - ./apps/wapi/var/keys/wapi/jwk.priv.json:/opt/wapi/var/keys/wapi/jwk.priv.json
-      - ./test/log/wapi:/var/log/wapi
-    depends_on:
-      cds:
-        condition: service_healthy
-      binbase:
-        condition: service_healthy
-    healthcheck:
-      test: "curl http://localhost:8080/"
-      interval: 5s
-      timeout: 1s
-      retries: 10
 
   hellgate:
     image: dr2.rbkmoney.com/rbkmoney/hellgate:32e269ab4f9f51b87dcb5a14a478b829a9c15737
@@ -84,7 +62,7 @@ services:
         --cds.client.storage.url=http://cds:8022/v2/storage
         --cds.client.identity-document-storage.url=http://cds:8022/v1/identity_document_storage
         --hellgate.client.adapter.url=http://hellgate:8022/v1/proxyhost/provider
-        --fistful.client.adapter.url=http://wapi:8022/v1/ff_p2p_adapter_host
+        --fistful.client.adapter.url=http://fisful-server:8022/v1/ff_p2p_adapter_host
 
     working_dir: /opt/proxy-mocketbank
     volumes:
@@ -194,19 +172,6 @@ services:
       timeout: 1s
       retries: 10
 
-  bender:
-    image: dr2.rbkmoney.com/rbkmoney/bender:cd0ee8faae41f22a40ea119337be2a842e3e9cd8
-    command: /opt/bender/bin/bender foreground
-    volumes:
-      - ./test/log/bender:/var/log/bender
-    healthcheck:
-      test: "curl http://localhost:8022/"
-      interval: 5s
-      timeout: 1s
-      retries: 20
-    depends_on:
-      - machinegun
-
   shumway-db:
     image: dr2.rbkmoney.com/rbkmoney/postgres:9.6
     environment:
@@ -223,37 +188,5 @@ services:
       interval: 5s
       timeout: 1s
       retries: 10
-
-  fistful-magista:
-    image: dr2.rbkmoney.com/rbkmoney/fistful-magista:ae8a1ccdddcf75827251d9011f4f340baaaeafa8
-    restart: always
-    entrypoint:
-      - java
-      - -Xmx256m
-      - -jar
-      - /opt/fistful-magista/fistful-magista.jar
-      - --spring.datasource.url=jdbc:postgresql://ffmagista-db:5432/ffmagista
-      - --spring.datasource.username=postgres
-      - --withdrawal.polling.url=http://fistful-server:8022/v1/eventsink/withdrawal
-      - --identity.polling.url=http://fistful-server:8022/v1/eventsink/identity
-      - --wallet.polling.url=http://fistful-server:8022/v1/eventsink/wallet
-    depends_on:
-      - ffmagista-db
-    healthcheck:
-      test: "curl http://localhost:8022/"
-      interval: 5s
-      timeout: 1s
-      retries: 10
-    environment:
-      - SPRING_DATASOURCE_PASSWORD=postgres
-      - SERVICE_NAME=ffmagista
-
-  ffmagista-db:
-    image: dr2.rbkmoney.com/rbkmoney/postgres:9.6
-    environment:
-      - POSTGRES_DB=ffmagista
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - SERVICE_NAME=ffmagista-db
 
 EOF

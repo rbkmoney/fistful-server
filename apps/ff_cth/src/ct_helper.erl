@@ -88,58 +88,6 @@ start_app(dmt_client = AppName) ->
                 'RepositoryClient' => <<"http://dominant:8022/v1/domain/repository_client">>
             }}
         ]), #{}};
-start_app(wapi = AppName) ->
-    {start_app_with(AppName, [
-            {ip, "::"},
-            {port, 8080},
-            {realm, <<"external">>},
-            {public_endpoint, <<"localhost:8080">>},
-            {access_conf, #{
-                jwt => #{
-                    keyset => #{
-                        wapi => {pem_file, "/opt/wapi/config/private.pem"}
-                    }
-                }
-            }},
-            {signee, wapi},
-            {lechiffre_opts, #{
-                encryption_source => {json, {file, "/opt/wapi/config/jwk.publ.json"}},
-                decryption_sources => [
-                    {json, {file, "/opt/wapi/config/jwk.priv.json"}}
-                ]
-            }},
-            {swagger_handler_opts, #{
-                validation_opts => #{
-                    custom_validator => wapi_swagger_validator
-                }
-            }},
-            {events_fetch_limit, 32}
-        ]), #{}};
-start_app(wapi_woody_client = AppName) ->
-    {start_app_with(AppName, [
-            {service_urls, #{
-                cds_storage => "http://cds:8022/v1/storage",
-                identdoc_storage => "http://cds:8022/v1/identity_document_storage",
-                fistful_stat => "http://fistful-magista:8022/stat",
-                fistful_wallet => "http://localhost:8022/v1/wallet",
-                fistful_identity => "http://localhost:8022/v1/identity",
-                fistful_destination => "http://localhost:8022/v1/destination",
-                fistful_withdrawal => "http://localhost:8022/v1/withdrawal",
-                fistful_w2w_transfer => "http://localhost:8022/v1/w2w_transfer",
-                fistful_p2p_template => "http://localhost:8022/v1/p2p_template",
-                fistful_p2p_transfer => "http://localhost:8022/v1/p2p_transfer",
-                fistful_p2p_session => "http://localhost:8022/v1/p2p_transfer/session"
-            }},
-            {service_retries, #{
-                fistful_stat => #{
-                    'GetWallets' => {linear, 3, 1000},
-                    '_' => finish
-                }
-            }},
-            {api_deadlines, #{
-                fistful_stat => 5000
-            }}
-        ]), #{}};
 start_app(ff_server = AppName) ->
     {start_app_with(AppName, [
             {ip, "::"},
@@ -182,14 +130,6 @@ start_app(ff_server = AppName) ->
                     namespace => 'ff/p2p_template_v1'
                 }
             }}
-        ]), #{}};
-start_app(bender_client = AppName) ->
-    {start_app_with(AppName, [
-            {services, #{
-                'Bender' => <<"http://bender:8022/v1/bender">>,
-                'Generator' => <<"http://bender:8022/v1/generator">>
-            }},
-            {deadline, 60000}
         ]), #{}};
 start_app(p2p = AppName) ->
     {start_app_with(AppName, [

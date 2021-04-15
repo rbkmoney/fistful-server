@@ -20,8 +20,8 @@ init(Config) ->
     case get_state(Config) of
         not_initialized ->
             {ok, [EncryptedMasterKeyShare]} = start_init(?THRESHOLD, Config),
-            {ok, EncPrivateKey} = file:read_file("/opt/wapi/config/enc.1.priv.json"),
-            {ok, SigPrivateKey} = file:read_file("/opt/wapi/config/sig.1.priv.json"),
+            {ok, EncPrivateKey} = file:read_file("/opt/fistful-server/config/enc.1.priv.json"),
+            {ok, SigPrivateKey} = file:read_file("/opt/fistful-server/config/sig.1.priv.json"),
             #{
                 id := ID,
                 encrypted_share := EncryptedShare

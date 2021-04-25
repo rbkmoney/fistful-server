@@ -94,27 +94,30 @@ process_withdrawal(#{id := WithdrawalID}, _State, _Options) ->
         transaction_info => #{id => <<"SleepyID">>, extra => #{}}
     }}.
 
+-dialyzer({nowarn_function, get_quote/2}).
+
 -spec get_quote(quote_params(), map()) -> {ok, quote()}.
 get_quote(_Quote, _Options) ->
     erlang:error(not_implemented).
 
+-dialyzer({nowarn_function, handle_callback/4}).
+
 -spec handle_callback(callback(), withdrawal(), state(), map()) ->
     {ok, #{
-        intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
+        intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), binary()},
         response := any(),
         next_state => state(),
         transaction_info => transaction_info()
-    }}
-when
-    CallbackTag :: binary().
+    }}.
 handle_callback(_Callback, #{quote := #wthadpt_Quote{quote_data = QuoteData}}, _State, _Options) when
     QuoteData =:= ?DUMMY_QUOTE_ERROR_FATAL
 ->
     erlang:error(spanish_inquisition);
 handle_callback(#{payload := Payload}, _Withdrawal, _State, _Options) ->
+    TransactionInfo = #{id => <<"SleepyID">>, extra => #{}},
     {ok, #{
-        intent => {finish, success},
+        intent => {finish, {success, TransactionInfo}},
         next_state => {str, <<"callback_finished">>},
         response => #{payload => Payload},
-        transaction_info => #{id => <<"SleepyID">>, extra => #{}}
+        transaction_info => TransactionInfo
     }}.

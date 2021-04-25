@@ -162,7 +162,8 @@ session_fail_test(C) ->
             created_at => <<"2016-03-22T06:12:27Z">>,
             expires_on => <<"2016-03-22T06:12:27Z">>,
             route => ff_withdrawal_routing:make_route(3, 1),
-            quote_data => #{<<"test">> => <<"error">>}
+            quote_data => #{<<"test">> => <<"error">>},
+            operation_timestamp => ff_time:now()
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -189,7 +190,8 @@ quote_fail_test(C) ->
             created_at => <<"2016-03-22T06:12:27Z">>,
             expires_on => <<"2016-03-22T06:12:27Z">>,
             route => ff_withdrawal_routing:make_route(10, 10),
-            quote_data => #{<<"test">> => <<"test">>}
+            quote_data => #{<<"test">> => <<"test">>},
+            operation_timestamp => ff_time:now()
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -467,7 +469,8 @@ quota_ok_test(C) ->
             created_at => <<"2016-03-22T06:12:27Z">>,
             expires_on => <<"2016-03-22T06:12:27Z">>,
             route => ff_withdrawal_routing:make_route(1, 1),
-            quote_data => #{<<"test">> => <<"test">>}
+            quote_data => #{<<"test">> => <<"test">>},
+            operation_timestamp => ff_time:now()
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -614,7 +617,8 @@ session_repair_test(C) ->
             created_at => <<"2016-03-22T06:12:27Z">>,
             expires_on => <<"2016-03-22T06:12:27Z">>,
             route => ff_withdrawal_routing:make_route(11, 1),
-            quote_data => #{<<"test">> => <<"fatal">>}
+            quote_data => #{<<"test">> => <<"fatal">>},
+            operation_timestamp => ff_time:now()
         }
     },
     Callback = #{
@@ -686,7 +690,7 @@ get_withdrawal(WithdrawalID) ->
 
 get_withdrawal_status(WithdrawalID) ->
     Withdrawal = get_withdrawal(WithdrawalID),
-    maps:get(status, Withdrawal).
+    ff_withdrawal:status(Withdrawal).
 
 await_session_processing_status(WithdrawalID, Status) ->
     Poller = fun() -> get_session_processing_status(WithdrawalID) end,
@@ -712,8 +716,7 @@ get_session_adapter_state(SessionID) ->
 
 get_session_id(WithdrawalID) ->
     Withdrawal = get_withdrawal(WithdrawalID),
-    Session = ff_withdrawal:get_current_session(Withdrawal),
-    ff_withdrawal_session:id(Session).
+    ff_withdrawal:session_id(Withdrawal).
 
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(

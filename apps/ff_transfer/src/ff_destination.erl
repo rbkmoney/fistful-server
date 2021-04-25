@@ -120,7 +120,7 @@
 }.
 
 -type event() ::
-    {created, destination_state()}
+    {created, destination()}
     | {account, ff_account:event()}
     | {status_changed, status()}.
 
@@ -415,6 +415,7 @@ v1_created_migration_test() ->
             name => <<"some name">>,
             external_id => genlib:unique()
         }},
+
     {created, #{version := Version}} = maybe_migrate(LegacyEvent, #{
         timestamp => ff_codec:unmarshal(timestamp, ff_codec:marshal(timestamp_ms, CreatedAt))
     }),

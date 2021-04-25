@@ -56,12 +56,12 @@
 -type blocking() :: unblocked | blocked.
 
 -type details() :: #{
-    body := template_body(),
+    body := details_body(),
     metadata => template_metadata()
 }.
 
--type template_body() :: #{
-    value := body()
+-type details_body() :: #{
+    value := template_body()
 }.
 
 -type template_metadata() :: #{
@@ -73,13 +73,14 @@
     | {blocking_changed, blocking()}.
 
 -type amount() :: integer().
--type body() :: #{
+-type template_body() :: #{
     amount => amount(),
     currency := ff_currency:id()
 }.
 
 -type template_cash() :: {amount() | undefined, ff_currency:id()}.
 
+-type body() :: ff_cash:cash().
 -type metadata() :: ff_entity_context:md().
 -type timestamp() :: ff_time:timestamp_ms().
 

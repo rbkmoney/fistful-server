@@ -54,7 +54,7 @@ marshal(T, V, C) when
 ->
     machinery_mg_schema_generic:marshal(T, V, C).
 
--spec unmarshal(type(), machinery_msgpack:t(), context()) -> {data(), context()}.
+-spec unmarshal(type(), machinery_msgpack:t(), context()) -> {value(data()), context()}.
 unmarshal({event, FormatVersion}, EncodedChange, Context) ->
     unmarshal_event(FormatVersion, EncodedChange, Context);
 unmarshal({aux_state, undefined} = T, V, C0) ->
@@ -185,15 +185,19 @@ get_aux_state_ctx(_) ->
 
 % tests helpers
 
--spec marshal(type(), value(data())) -> machinery_msgpack:t().
+-spec make_legacy_context(map()) -> context().
+make_legacy_context(Map) ->
+    % drop mandatory attributes for backward compatible
+    maps:without([machine_ref, machine_ns], Map).
 
+-spec marshal(type(), value(data())) -> machinery_msgpack:t().
 marshal(Type, Value) ->
-    {Result, _Context} = marshal(Type, Value, #{}),
+    {Result, _Context} = marshal(Type, Value, make_legacy_context(#{})),
     Result.
 
--spec unmarshal(type(), machinery_msgpack:t()) -> data().
+-spec unmarshal(type(), machinery_msgpack:t()) -> value(data()).
 unmarshal(Type, Value) ->
-    {Result, _Context} = unmarshal(Type, Value, #{}),
+    {Result, _Context} = unmarshal(Type, Value, make_legacy_context(#{})),
     Result.
 
 -spec created_v1_3_decoding_test() -> _.
@@ -261,8 +265,8 @@ created_v1_3_decoding_test() ->
             ]},
             LegacyChange
         ]},
-    MetadataCtx = #{<<"com.rbkmoney.wapi">> => #{<<"metadata">> => #{<<"foo">> => <<"bar">>}}},
-    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, #{ctx => MetadataCtx}),
+    C = make_legacy_context(#{ctx => #{<<"com.rbkmoney.wapi">> => #{<<"metadata">> => #{<<"foo">> => <<"bar">>}}}}),
+    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, C),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -383,8 +387,8 @@ created_v2_3_decoding_test() ->
             ]},
             LegacyChange
         ]},
-    MetadataCtx = #{<<"com.rbkmoney.wapi">> => #{<<"metadata">> => #{<<"foo">> => <<"bar">>}}},
-    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, #{ctx => MetadataCtx}),
+    C = make_legacy_context(#{ctx => #{<<"com.rbkmoney.wapi">> => #{<<"metadata">> => #{<<"foo">> => <<"bar">>}}}}),
+    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, C),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -514,8 +518,9 @@ created_v2_3_saved_metadata_decoding_test() ->
             ]},
             LegacyChange
         ]},
-    {MarshalledAuxState, _Context0} = marshal({aux_state, undefined}, AuxState, #{}),
-    {_UnmarshalledAuxState, Context0} = unmarshal({aux_state, undefined}, MarshalledAuxState, #{}),
+    C = make_legacy_context(#{}),
+    {MarshalledAuxState, _Context0} = marshal({aux_state, undefined}, AuxState, C),
+    {_UnmarshalledAuxState, Context0} = unmarshal({aux_state, undefined}, MarshalledAuxState, C),
     {DecodedLegacy, _Context1} = unmarshal({event, undefined}, LegacyEvent, Context0),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),

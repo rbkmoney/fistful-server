@@ -45,7 +45,7 @@ all() ->
         {group, default}
     ].
 
--spec groups() -> [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), [test_case_name()]}].
 groups() ->
     [
         {default, [
@@ -248,6 +248,9 @@ make_varset(Cash, PartyID) ->
         cost => Cash,
         payment_tool =>
             {bank_card, #domain_BankCard{
+                token = <<>>,
+                bin = <<>>,
+                last_digits = <<>>,
                 payment_system_deprecated = visa
             }},
         party_id => PartyID

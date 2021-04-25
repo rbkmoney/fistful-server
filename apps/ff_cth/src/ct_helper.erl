@@ -64,15 +64,22 @@ start_apps(AppNames) ->
 
 -spec start_app(app_name() | app_with_env()) -> {[Started :: app_name()], startup_ctx()}.
 start_app(scoper = AppName) ->
-    {start_app_with(AppName, [
+    {
+        start_app_with(AppName, [
             {storage, scoper_storage_logger}
-        ]), #{}};
+        ]),
+        #{}
+    };
 start_app(woody = AppName) ->
-    {start_app_with(AppName, [
+    {
+        start_app_with(AppName, [
             {acceptors_pool_size, 4}
-        ]), #{}};
+        ]),
+        #{}
+    };
 start_app(dmt_client = AppName) ->
-    {start_app_with(AppName, [
+    {
+        start_app_with(AppName, [
             % milliseconds
             {cache_update_interval, 500},
             {max_cache_size, #{
@@ -87,9 +94,12 @@ start_app(dmt_client = AppName) ->
                 'Repository' => <<"http://dominant:8022/v1/domain/repository">>,
                 'RepositoryClient' => <<"http://dominant:8022/v1/domain/repository_client">>
             }}
-        ]), #{}};
+        ]),
+        #{}
+    };
 start_app(ff_server = AppName) ->
-    {start_app_with(AppName, [
+    {
+        start_app_with(AppName, [
             {ip, "::"},
             {port, 8022},
             {admin, #{
@@ -130,11 +140,16 @@ start_app(ff_server = AppName) ->
                     namespace => 'ff/p2p_template_v1'
                 }
             }}
-        ]), #{}};
+        ]),
+        #{}
+    };
 start_app(p2p = AppName) ->
-    {start_app_with(AppName, [
+    {
+        start_app_with(AppName, [
             {score_id, <<"fraud">>}
-        ]), #{}};
+        ]),
+        #{}
+    };
 start_app({AppName, AppEnv}) ->
     {start_app_with(AppName, AppEnv), #{}};
 start_app(AppName) ->

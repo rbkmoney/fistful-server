@@ -330,15 +330,19 @@ get_aux_state_ctx(_) ->
 
 % tests helpers
 
--spec marshal(type(), value(data())) -> machinery_msgpack:t().
+-spec make_legacy_context(map()) -> context().
+make_legacy_context(Map) ->
+    % drop mandatory attributes for backward compatible
+    maps:without([machine_ref, machine_ns], Map).
 
+-spec marshal(type(), value(data())) -> machinery_msgpack:t().
 marshal(Type, Value) ->
-    {Result, _Context} = marshal(Type, Value, #{}),
+    {Result, _Context} = marshal(Type, Value, make_legacy_context(#{})),
     Result.
 
--spec unmarshal(type(), machinery_msgpack:t()) -> data().
+-spec unmarshal(type(), machinery_msgpack:t()) -> value(data()).
 unmarshal(Type, Value) ->
-    {Result, _Context} = unmarshal(Type, Value, #{}),
+    {Result, _Context} = unmarshal(Type, Value, make_legacy_context(#{})),
     Result.
 
 -spec created_v0_0_without_provider_migration_test() -> _.
@@ -412,15 +416,19 @@ created_v0_0_without_provider_migration_test() ->
                 ]}
             ]}
         ]},
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
+    {DecodedLegacy, _} = unmarshal(
+        {event, undefined},
+        LegacyEvent,
+        make_legacy_context(#{
+            ctx => #{
+                <<"com.rbkmoney.wapi">> => #{
+                    <<"metadata">> => #{
+                        <<"some key">> => <<"some val">>
+                    }
                 }
             }
-        }
-    }),
+        })
+    ),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -476,15 +484,19 @@ created_v0_0_migration_test() ->
             ]},
             LegacyChange
         ]},
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
+    {DecodedLegacy, _} = unmarshal(
+        {event, undefined},
+        LegacyEvent,
+        make_legacy_context(#{
+            ctx => #{
+                <<"com.rbkmoney.wapi">> => #{
+                    <<"metadata">> => #{
+                        <<"some key">> => <<"some val">>
+                    }
                 }
             }
-        }
-    }),
+        })
+    ),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -566,15 +578,19 @@ created_v0_1_migration_test() ->
             ]},
             LegacyChange
         ]},
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
+    {DecodedLegacy, _} = unmarshal(
+        {event, undefined},
+        LegacyEvent,
+        make_legacy_context(#{
+            ctx => #{
+                <<"com.rbkmoney.wapi">> => #{
+                    <<"metadata">> => #{
+                        <<"some key">> => <<"some val">>
+                    }
                 }
             }
-        }
-    }),
+        })
+    ),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -722,15 +738,19 @@ created_v0_2_migration_test() ->
             ]},
             LegacyChange
         ]},
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
+    {DecodedLegacy, _} = unmarshal(
+        {event, undefined},
+        LegacyEvent,
+        make_legacy_context(#{
+            ctx => #{
+                <<"com.rbkmoney.wapi">> => #{
+                    <<"metadata">> => #{
+                        <<"some key">> => <<"some val">>
+                    }
                 }
             }
-        }
-    }),
+        })
+    ),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -845,15 +865,19 @@ created_v0_3_migration_test() ->
             ]},
             LegacyChange
         ]},
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
+    {DecodedLegacy, _} = unmarshal(
+        {event, undefined},
+        LegacyEvent,
+        make_legacy_context(#{
+            ctx => #{
+                <<"com.rbkmoney.wapi">> => #{
+                    <<"metadata">> => #{
+                        <<"some key">> => <<"some val">>
+                    }
                 }
             }
-        }
-    }),
+        })
+    ),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -961,7 +985,7 @@ created_v0_3_migration_with_quote_test() ->
             ]},
             LegacyChange
         ]},
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -1066,7 +1090,7 @@ created_v0_4_migration_with_quote_test() ->
             ]},
             LegacyChange
         ]},
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -1120,7 +1144,7 @@ status_changed_v0_0_migration_test() ->
             ]},
             LegacyChange
         ]},
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

@@ -26,12 +26,17 @@
 -export([get_resource/1]).
 -export([get_resource/2]).
 -export([contact_info/1]).
+-export([resource_params/1]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 
 -spec contact_info(participant()) -> contact_info().
 contact_info({raw, Raw}) ->
     maps:get(contact_info, Raw).
+
+-spec resource_params(participant()) -> resource_params().
+resource_params({raw, Raw}) ->
+    maps:get(resource_params, Raw).
 
 -spec create(raw, resource_params(), contact_info()) -> participant().
 create(raw, ResourceParams, ContactInfo) ->

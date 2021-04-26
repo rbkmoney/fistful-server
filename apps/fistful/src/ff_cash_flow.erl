@@ -247,7 +247,7 @@ compute_postings(#{postings := PlanPostings}, Accounts, Constants) ->
     do(fun() ->
         [
             unwrap(construct_final_posting(PlanPosting, Accounts, Constants))
-            || PlanPosting <- PlanPostings
+         || PlanPosting <- PlanPostings
         ]
     end).
 

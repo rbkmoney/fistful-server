@@ -89,9 +89,13 @@ process_withdrawal(_Withdrawal, State, _Options) ->
         next_state => State
     }}.
 
+-dialyzer({nowarn_function, get_quote/2}).
+
 -spec get_quote(quote_params(), map()) -> {ok, quote()}.
 get_quote(_Quote, _Options) ->
     erlang:error(not_implemented).
+
+-dialyzer({nowarn_function, handle_callback/4}).
 
 -spec handle_callback(callback(), withdrawal(), state(), map()) ->
     {ok, #{

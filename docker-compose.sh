@@ -41,7 +41,6 @@ services:
         condition: service_healthy
     volumes:
       - ./test/hellgate/sys.config:/opt/hellgate/releases/0.1/sys.config
-      - ./test/log/hellgate:/var/log/hellgate
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
@@ -65,8 +64,6 @@ services:
         --fistful.client.adapter.url=http://fisful-server:8022/v1/ff_p2p_adapter_host
 
     working_dir: /opt/proxy-mocketbank
-    volumes:
-        - ./test/log/proxy-mocketbank:/var/log/proxy-mocketbank
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
@@ -81,7 +78,6 @@ services:
         condition: service_healthy
     volumes:
       - ./test/dominant/sys.config:/opt/dominant/releases/0.1/sys.config
-      - ./test/log/dominant:/var/log/dominant
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
@@ -113,7 +109,6 @@ services:
     command: /opt/identification/bin/identification foreground
     volumes:
       - ./test/identification/sys.config:/opt/identification/releases/0.1/sys.config
-      - ./test/log/identification:/var/log/identification
     depends_on:
       - cds
     healthcheck:
@@ -127,7 +122,6 @@ services:
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
-      - ./test/log/cds:/var/log/cds
       - ./test/cds/ca.crt:/var/lib/cds/ca.crt:ro
       - ./test/cds/client.pem:/var/lib/cds/client.pem
     healthcheck:
@@ -146,7 +140,6 @@ services:
       - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
       - ./test/kds/ca.crt:/var/lib/kds/ca.crt:ro
       - ./test/kds/server.pem:/var/lib/kds/server.pem:ro
-      - ./test/log/kds:/var/log/kds
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
@@ -164,7 +157,6 @@ services:
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml
-      - ./test/log/machinegun:/var/log/machinegun
       - ./test/machinegun/cookie:/opt/machinegun/etc/cookie
     healthcheck:
       test: "curl http://localhost:8022/"

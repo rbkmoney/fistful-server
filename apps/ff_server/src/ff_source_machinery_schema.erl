@@ -377,12 +377,17 @@ status_1_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
+-spec make_legacy_context(map()) -> context().
+make_legacy_context(Map) ->
+    % drop mandatory attributes for backward compatible
+    maps:without([machine_ref, machine_ns], Map).
+
 -spec marshal(type(), value(data())) -> machinery_msgpack:t().
 marshal(Type, Value) ->
-    element(1, marshal(Type, Value, #{})).
+    element(1, marshal(Type, Value, make_legacy_context(#{}))).
 
--spec unmarshal(type(), machinery_msgpack:t()) -> data().
+-spec unmarshal(type(), machinery_msgpack:t()) -> value(data()).
 unmarshal(Type, Value) ->
-    element(1, unmarshal(Type, Value, #{})).
+    element(1, unmarshal(Type, Value, make_legacy_context(#{}))).
 
 -endif.

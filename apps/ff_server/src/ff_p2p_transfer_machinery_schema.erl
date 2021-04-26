@@ -172,15 +172,19 @@ maybe_migrate_quote(Quote) when is_map_key(fees, Quote) ->
 
 % tests helpers
 
--spec marshal(type(), value(data())) -> machinery_msgpack:t().
+-spec make_legacy_context(map()) -> context().
+make_legacy_context(Map) ->
+    % drop mandatory attributes for backward compatible
+    maps:without([machine_ref, machine_ns], Map).
 
+-spec marshal(type(), value(data())) -> machinery_msgpack:t().
 marshal(Type, Value) ->
-    {Result, _Context} = marshal(Type, Value, #{}),
+    {Result, _Context} = marshal(Type, Value, make_legacy_context(#{})),
     Result.
 
--spec unmarshal(type(), machinery_msgpack:t()) -> data().
+-spec unmarshal(type(), machinery_msgpack:t()) -> value(data()).
 unmarshal(Type, Value) ->
-    {Result, _Context} = unmarshal(Type, Value, #{}),
+    {Result, _Context} = unmarshal(Type, Value, make_legacy_context(#{})),
     Result.
 
 -spec created_v0_1_decoding_test() -> _.

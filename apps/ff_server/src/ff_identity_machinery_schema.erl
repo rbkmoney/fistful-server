@@ -182,15 +182,19 @@ get_legacy_name(#{<<"com.rbkmoney.wapi">> := #{<<"name">> := Name}}) ->
 
 % tests helpers
 
--spec marshal(type(), value(data())) -> machinery_msgpack:t().
+-spec make_legacy_context(map()) -> context().
+make_legacy_context(Map) ->
+    % drop mandatory attributes for backward compatible
+    maps:without([machine_ref, machine_ns], Map).
 
+-spec marshal(type(), value(data())) -> machinery_msgpack:t().
 marshal(Type, Value) ->
-    {Result, _Context} = marshal(Type, Value, #{}),
+    {Result, _Context} = marshal(Type, Value, make_legacy_context(#{})),
     Result.
 
--spec unmarshal(type(), machinery_msgpack:t()) -> data().
+-spec unmarshal(type(), machinery_msgpack:t()) -> value(data()).
 unmarshal(Type, Value) ->
-    {Result, _Context} = unmarshal(Type, Value, #{}),
+    {Result, _Context} = unmarshal(Type, Value, make_legacy_context(#{})),
     Result.
 
 -spec created_v0_decoding_test() -> _.
@@ -248,14 +252,10 @@ created_v0_decoding_test() ->
             ]},
             LegacyChange
         ]},
-
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{<<"com.rbkmoney.wapi">> => #{<<"name">> => <<"Name">>}}
-    }),
+    C = make_legacy_context(#{ctx => #{<<"com.rbkmoney.wapi">> => #{<<"name">> => <<"Name">>}}}),
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, C),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    {Decoded, _} = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary, #{
-        ctx => #{<<"com.rbkmoney.wapi">> => #{<<"name">> => <<"Name">>}}
-    }),
+    {Decoded, _} = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary, C),
     ?assertEqual(Event, Decoded).
 
 -spec level_changed_v0_decoding_test() -> _.
@@ -285,7 +285,7 @@ level_changed_v0_decoding_test() ->
             LegacyChange
         ]},
 
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -317,7 +317,7 @@ effective_challenge_changed_v0_decoding_test() ->
             LegacyChange
         ]},
 
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -325,7 +325,8 @@ effective_challenge_changed_v0_decoding_test() ->
 -spec challenge_created_v0_decoding_test() -> _.
 challenge_created_v0_decoding_test() ->
     Change =
-        {{challenge, <<"challengeID">>},
+        {
+            {challenge, <<"challengeID">>},
             {created, #{
                 id => <<"id">>,
                 claimant => <<"claimant">>,
@@ -335,7 +336,8 @@ challenge_created_v0_decoding_test() ->
                 proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
                 master_id => <<"master_id">>,
                 claim_id => <<"claim_id">>
-            }}},
+            }}
+        },
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
 
     LegacyChange =
@@ -388,7 +390,7 @@ challenge_created_v0_decoding_test() ->
             LegacyChange
         ]},
 
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -428,7 +430,7 @@ challenge_status_changed_v0_decoding_test() ->
             LegacyChange
         ]},
 
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -455,13 +457,10 @@ created_v1_decoding_test() ->
                 "QYXJ0eUlECwACAAAACGdvb2Qtb25lCwADAAAABWNsYXNzCwAEAAAACkNvbnRyYWN0SUQLAAoAAA"
                 "AYMjAyMC0wNi0xOVQxNDoyOTowMy43NjJaDQALCwwAAAABAAAACHNvbWUga2V5CwAFAAAACHNvbWUgdmFsAAAAAA=="
             >>)},
-    {DecodedLegacy, _} = unmarshal({event, 1}, LegacyEvent, #{
-        ctx => #{<<"com.rbkmoney.wapi">> => #{<<"name">> => <<"Name">>}}
-    }),
+    C = make_legacy_context(#{ctx => #{<<"com.rbkmoney.wapi">> => #{<<"name">> => <<"Name">>}}}),
+    {DecodedLegacy, _} = unmarshal({event, 1}, LegacyEvent, C),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    {Decoded, _} = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary, #{
-        ctx => #{<<"com.rbkmoney.wapi">> => #{<<"name">> => <<"Name">>}}
-    }),
+    {Decoded, _} = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary, C),
     ?assertEqual(Event, Decoded).
 
 -spec level_changed_v1_decoding_test() -> _.
@@ -495,7 +494,8 @@ effective_challenge_changed_v1_decoding_test() ->
 -spec challenge_created_v1_decoding_test() -> _.
 challenge_created_v1_decoding_test() ->
     Change =
-        {{challenge, <<"challengeID">>},
+        {
+            {challenge, <<"challengeID">>},
             {created, #{
                 id => <<"id">>,
                 claimant => <<"claimant">>,
@@ -505,7 +505,8 @@ challenge_created_v1_decoding_test() ->
                 proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
                 master_id => <<"master_id">>,
                 claim_id => <<"claim_id">>
-            }}},
+            }}
+        },
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent =
         {bin,
@@ -593,7 +594,8 @@ effective_challenge_changed_v2_decoding_test() ->
 -spec challenge_created_v2_decoding_test() -> _.
 challenge_created_v2_decoding_test() ->
     Change =
-        {{challenge, <<"challengeID">>},
+        {
+            {challenge, <<"challengeID">>},
             {created, #{
                 id => <<"id">>,
                 claimant => <<"claimant">>,
@@ -603,7 +605,8 @@ challenge_created_v2_decoding_test() ->
                 proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
                 master_id => <<"master_id">>,
                 claim_id => <<"claim_id">>
-            }}},
+            }}
+        },
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent =
         {bin,

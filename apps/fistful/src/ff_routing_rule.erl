@@ -31,6 +31,7 @@
 -export_type([provider/0]).
 -export_type([terminal/0]).
 -export_type([reject_context/0]).
+-export_type([rejected_route/0]).
 
 -type reject_context() :: #{
     varset := varset(),
@@ -60,7 +61,7 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     end.
 
 -spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->
-    {ok, {[route()], [route()]}}
+    {ok, {[route()], [rejected_route()]}}
     | {error, misconfiguration}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->

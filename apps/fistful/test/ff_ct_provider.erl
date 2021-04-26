@@ -106,6 +106,8 @@ process_withdrawal(_Withdrawal, State, _Options) ->
         next_state => State
     }}.
 
+-dialyzer({nowarn_function, get_quote/2}).
+
 -spec get_quote(quote_params(), map()) -> {ok, quote()}.
 get_quote(
     #{
@@ -122,6 +124,8 @@ get_quote(
         expires_on => ff_time:to_rfc3339(ff_time:now() + 15 * 3600 * 1000),
         quote_data => ?DUMMY_QUOTE
     }}.
+
+-dialyzer({nowarn_function, handle_callback/4}).
 
 -spec handle_callback(callback(), withdrawal(), state(), map()) ->
     {ok, #{

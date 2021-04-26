@@ -98,18 +98,24 @@ start_processing_apps(Options) ->
                     },
                     {
                         <<"/downbank">>,
-                        {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
-                            {ff_ct_provider_handler, [{handler, ff_ct_fail_provider}]}}
+                        {
+                            {dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
+                            {ff_ct_provider_handler, [{handler, ff_ct_fail_provider}]}
+                        }
                     },
                     {
                         <<"/downbank2">>,
-                        {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
-                            {ff_ct_provider_handler, [{handler, ff_ct_unknown_failure_provider}]}}
+                        {
+                            {dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
+                            {ff_ct_provider_handler, [{handler, ff_ct_unknown_failure_provider}]}
+                        }
                     },
                     {
                         <<"/sleepybank">>,
-                        {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
-                            {ff_ct_provider_handler, [{handler, ff_ct_sleepy_provider}]}}
+                        {
+                            {dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
+                            {ff_ct_provider_handler, [{handler, ff_ct_sleepy_provider}]}
+                        }
                     },
                     {
                         P2PAdapterAdr,

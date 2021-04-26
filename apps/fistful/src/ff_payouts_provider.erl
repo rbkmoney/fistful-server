@@ -107,7 +107,7 @@ compute_withdrawal_terminals_(TerminalSelector, VS) ->
         {ok, Terminals} ->
             {ok, [
                 {TerminalID, Priority}
-                || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals
+             || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals
             ]};
         Error ->
             Error

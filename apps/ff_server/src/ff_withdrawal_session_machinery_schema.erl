@@ -421,15 +421,19 @@ maybe_cut_withdrawal_id(ID) ->
 
 % tests helpers
 
--spec marshal(type(), value(data())) -> machinery_msgpack:t().
+-spec make_legacy_context(map()) -> context().
+make_legacy_context(Map) ->
+    % drop mandatory attributes for backward compatible
+    maps:without([machine_ref, machine_ns], Map).
 
+-spec marshal(type(), value(data())) -> machinery_msgpack:t().
 marshal(Type, Value) ->
-    {Result, _Context} = marshal(Type, Value, #{}),
+    {Result, _Context} = marshal(Type, Value, make_legacy_context(#{})),
     Result.
 
--spec unmarshal(type(), machinery_msgpack:t()) -> data().
+-spec unmarshal(type(), machinery_msgpack:t()) -> value(data()).
 unmarshal(Type, Value) ->
-    {Result, _Context} = unmarshal(Type, Value, #{}),
+    {Result, _Context} = unmarshal(Type, Value, make_legacy_context(#{})),
     Result.
 
 -spec created_with_broken_withdrawal_id_test() -> _.
@@ -861,7 +865,11 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
                 ]}
             ]}
         ]},
-    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, #{bindata_fun => fun(R) -> R end}),
+    {DecodedLegacy, _Context} = unmarshal(
+        {event, undefined},
+        LegacyEvent,
+        make_legacy_context(#{bindata_fun => fun(R) -> R end})
+    ),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -999,7 +1007,11 @@ created_v0_unknown_without_provider_decoding_test() ->
                 ]}
             ]}
         ]},
-    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, #{bindata_fun => fun(R) -> R end}),
+    {DecodedLegacy, _Context} = unmarshal(
+        {event, undefined},
+        LegacyEvent,
+        make_legacy_context(#{bindata_fun => fun(R) -> R end})
+    ),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

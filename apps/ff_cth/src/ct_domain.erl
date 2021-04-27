@@ -103,10 +103,6 @@ p2p_provider(Ref, ProxyRef, IdentityID, C) ->
             },
             accounts = #{
                 ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
-            },
-            terminal = {
-                decisions,
-                []
             }
         }
     }}.
@@ -289,7 +285,11 @@ withdrawal_terminal(?trm(6) = Ref) ->
         data = #domain_Terminal{
             name = <<"WithdrawalTerminal">>,
             description = <<"Withdrawal terminal">>,
-            terms = #domain_ProvisionTermSet{}
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{}
+                }
+            }
         }
     }};
 withdrawal_terminal(?trm(7) = Ref) ->

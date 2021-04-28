@@ -180,6 +180,7 @@ create_failed_session(IdentityID, DestinationID, _C) ->
         withdrawal_id => ID,
         resource => DestinationResource,
         route => #{
+            version => 1,
             provider_id => 1
         }
     },

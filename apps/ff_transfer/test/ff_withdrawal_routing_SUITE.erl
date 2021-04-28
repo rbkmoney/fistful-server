@@ -67,7 +67,7 @@ all() ->
         {group, default}
     ].
 
--spec groups() -> [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), [test_case_name()]}].
 groups() ->
     [
         {default, [
@@ -188,7 +188,8 @@ adapter_unreachable_quote_test(C) ->
             created_at => <<"2020-03-22T06:12:27Z">>,
             expires_on => <<"2020-03-22T06:12:27Z">>,
             route => ff_withdrawal_routing:make_route(4, 1),
-            quote_data => #{<<"test">> => <<"test">>}
+            quote_data => #{<<"test">> => <<"test">>},
+            operation_timestamp => ff_time:now()
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),

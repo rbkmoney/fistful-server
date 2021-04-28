@@ -85,8 +85,8 @@ identity_classes(#{identity_classes := ICs}) ->
 list() ->
     [
         Provider
-        || ID <- list_providers(),
-           {ok, Provider} <- [ff_provider:get(ID)]
+     || ID <- list_providers(),
+        {ok, Provider} <- [ff_provider:get(ID)]
     ].
 
 -spec get(id()) ->

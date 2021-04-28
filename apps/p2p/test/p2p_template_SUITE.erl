@@ -121,7 +121,7 @@ create_transfer_test(C) ->
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
+    } = p2p_tests_utils:prepare_standard_environment(C),
     P2PTransferParams = #{
         id => P2PTransferID,
         body => {500, <<"RUB">>},
@@ -149,7 +149,7 @@ block_template_test(C) ->
     ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
     P2PTemplate0 = get_p2p_template(P2PTemplateID),
     ?assertEqual(unblocked, p2p_template:blocking(P2PTemplate0)),
-    p2p_template_machine:set_blocking(P2PTemplateID, blocked),
+    ok = p2p_template_machine:set_blocking(P2PTemplateID, blocked),
     P2PTemplate1 = get_p2p_template(P2PTemplateID),
     ?assertEqual(blocked, p2p_template:blocking(P2PTemplate1)).
 
@@ -230,9 +230,9 @@ preserve_revisions_test(C) ->
     },
     ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
     P2PTemplate = get_p2p_template(P2PTemplateID),
-    ?assertNotEqual(undefined, p2p_template:domain_revision(P2PTemplate)),
-    ?assertNotEqual(undefined, p2p_template:party_revision(P2PTemplate)),
-    ?assertNotEqual(undefined, p2p_template:created_at(P2PTemplate)).
+    ?assert(erlang:is_integer(p2p_template:domain_revision(P2PTemplate))),
+    ?assert(erlang:is_integer(p2p_template:party_revision(P2PTemplate))),
+    ?assert(erlang:is_integer(p2p_template:created_at(P2PTemplate))).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->

@@ -101,8 +101,8 @@ spanning_works(C) ->
     Trx3 = {genlib:unique(), Ts3 = {{{2018, 07, 02}, Time}, USec}, Dv3 = rand:uniform(100)},
     _ = [
         {ok, _} = ff_limit:account(?NS, Lim, Trx, Be)
-        || Lim <- [Lim1, Lim2, Lim3],
-           Trx <- [Trx1, Trx2, Trx3]
+     || Lim <- [Lim1, Lim2, Lim3],
+        Trx <- [Trx1, Trx2, Trx3]
     ],
     Dv12 = Dv1 + Dv2,
     Dv23 = Dv2 + Dv3,

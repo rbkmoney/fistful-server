@@ -312,15 +312,10 @@ deposit_withdrawal_ok(C) ->
     ICID = genlib:unique(),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
-
     SrcID = create_source(IID, C),
-
-    process_deposit(SrcID, WalID),
-
+    ok = process_deposit(SrcID, WalID),
     DestID = create_destination(IID, C),
-
-    pass_identification(ICID, IID, C),
-
+    ok = pass_identification(ICID, IID, C),
     WdrID = process_withdrawal(WalID, DestID),
     Events = get_withdrawal_events(WdrID),
     [1] = route_changes(Events).
@@ -334,7 +329,7 @@ deposit_withdrawal_to_crypto_wallet(C) ->
     SrcID = create_source(IID, C),
     ok = process_deposit(SrcID, WalID),
     DestID = create_crypto_destination(IID, C),
-    pass_identification(ICID, IID, C),
+    ok = pass_identification(ICID, IID, C),
     WdrID = process_withdrawal(WalID, DestID),
     Events = get_withdrawal_events(WdrID),
     [2] = route_changes(Events).
@@ -345,15 +340,10 @@ deposit_quote_withdrawal_ok(C) ->
     ICID = genlib:unique(),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
-
     SrcID = create_source(IID, C),
-
-    process_deposit(SrcID, WalID),
-
+    ok = process_deposit(SrcID, WalID),
     DestID = create_destination(IID, C),
-
-    pass_identification(ICID, IID, C),
-
+    ok = pass_identification(ICID, IID, C),
     DomainRevision = ff_domain_config:head(),
     {ok, PartyRevision} = ff_party:get_revision(Party),
     WdrID = process_withdrawal(WalID, DestID, #{
@@ -494,7 +484,7 @@ process_deposit(SrcID, WalID) ->
         end,
         genlib_retry:linear(15, 1000)
     ),
-    ok = await_wallet_balance({10000, <<"RUB">>}, WalID).
+    await_wallet_balance({10000, <<"RUB">>}, WalID).
 
 create_destination(IID, C) ->
     DestResource = {bank_card, #{bank_card => ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)}},
@@ -546,7 +536,8 @@ pass_identification(ICID, IID, C) ->
             {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
             ff_identity_challenge:status(IC)
         end
-    ).
+    ),
+    ok.
 
 process_withdrawal(WalID, DestID) ->
     process_withdrawal(WalID, DestID, #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}}).

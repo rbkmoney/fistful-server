@@ -96,7 +96,7 @@
     cash_to := cash(),
     created_at := binary(),
     expires_on := binary(),
-    quote_data := ff_adapter_withdrawal:quote(),
+    quote_data := ff_adapter_withdrawal:quote_data(),
     route := route(),
     operation_timestamp := ff_time:timestamp_ms(),
     resource_descriptor => resource_descriptor(),
@@ -109,7 +109,7 @@
     cash_to := cash(),
     created_at := binary(),
     expires_on := binary(),
-    quote_data := ff_adapter_withdrawal:quote(),
+    quote_data := ff_adapter_withdrawal:quote_data(),
     route := route(),
     resource_descriptor => resource_descriptor()
 }.
@@ -225,6 +225,7 @@
 -export([adjustments/1]).
 -export([effective_final_cash_flow/1]).
 -export([sessions/1]).
+-export([session_id/1]).
 -export([get_current_session/1]).
 -export([get_current_session_status/1]).
 
@@ -1253,10 +1254,6 @@ quote_domain_revision(Quote) ->
 
 %% Session management
 
--spec get_current_session(withdrawal_state()) -> session() | undefined.
-get_current_session(Withdrawal) ->
-    ff_withdrawal_route_attempt_utils:get_current_session(attempts(Withdrawal)).
-
 -spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
     case get_current_session(T) of
@@ -1265,6 +1262,10 @@ session_id(T) ->
         #{id := SessionID} ->
             SessionID
     end.
+
+-spec get_current_session(withdrawal_state()) -> session() | undefined.
+get_current_session(Withdrawal) ->
+    ff_withdrawal_route_attempt_utils:get_current_session(attempts(Withdrawal)).
 
 -spec get_session_result(withdrawal_state()) -> session_result() | unknown | undefined.
 get_session_result(Withdrawal) ->

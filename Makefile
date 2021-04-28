@@ -58,7 +58,7 @@ format:
 	$(REBAR) fmt -w
 
 dialyze: submodules
-	$(REBAR) dialyzer
+	$(REBAR) as test dialyzer
 
 plt_update:
 	$(REBAR) dialyzer -u true -s false

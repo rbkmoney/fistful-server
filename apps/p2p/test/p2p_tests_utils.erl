@@ -4,12 +4,11 @@
 
 %% API
 -export([
-    prepare_standard_environment/2,
-    prepare_standard_environment/3
+    prepare_standard_environment/1,
+    prepare_standard_environment/2
 ]).
 
 -type config() :: ct_helper:config().
--type cash() :: ff_cash:cash().
 -type token() :: tuple() | binary().
 -type prepared_ids() :: #{
     identity_id => ff_identity:id(),
@@ -18,12 +17,12 @@
     receiver => p2p_participant:participant()
 }.
 
--spec prepare_standard_environment(cash(), config()) -> prepared_ids().
-prepare_standard_environment(P2PTransferCash, C) ->
-    prepare_standard_environment(P2PTransferCash, undefined, C).
+-spec prepare_standard_environment(config()) -> prepared_ids().
+prepare_standard_environment(C) ->
+    prepare_standard_environment(undefined, C).
 
--spec prepare_standard_environment(cash(), token(), config()) -> prepared_ids().
-prepare_standard_environment(_P2PTransferCash, Token, C) ->
+-spec prepare_standard_environment(token() | undefined, config()) -> prepared_ids().
+prepare_standard_environment(Token, C) ->
     PartyID = create_party(C),
     IdentityID = create_person_identity(PartyID, C, <<"quote-owner">>),
     {ResourceSender, ResourceReceiver} =

@@ -45,7 +45,7 @@ all() ->
         {group, default}
     ].
 
--spec groups() -> [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), [test_case_name()]}].
 groups() ->
     [
         {default, [
@@ -252,9 +252,9 @@ make_varset(Cash, PartyID) ->
 
 bank_card() ->
     {bank_card, #domain_BankCard{
-        token = genlib:bsuuid(),
-        bin = <<"424242">>,
-        last_digits = <<"">>,
+        token = <<>>,
+        bin = <<>>,
+        last_digits = <<>>,
         bank_name = <<"bank">>,
         payment_system_deprecated = visa,
         issuer_country = rus

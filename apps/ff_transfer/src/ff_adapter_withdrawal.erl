@@ -120,6 +120,7 @@
 -export_type([quote_params/0]).
 -export_type([quote_data/0]).
 -export_type([identity/0]).
+-export_type([handle_callback_result/0]).
 
 %%
 %% Accessors

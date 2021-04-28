@@ -5,6 +5,7 @@
 -export([prepare_routes/3]).
 -export([get_provider/1]).
 -export([get_terminal/1]).
+-export([make_route/2]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 

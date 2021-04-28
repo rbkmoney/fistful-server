@@ -235,9 +235,7 @@ prepare_standard_environment(TokenPrefix, TransferCash, C) ->
     DomainRevision = ff_domain_config:head(),
     {ok, PartyRevision} = ff_party:get_revision(PartyID),
     SessionParams = #{
-        route => #{
-            provider_id => 101
-        },
+        route => p2p_transfer_routing:make_route(101, undefined),
         domain_revision => DomainRevision,
         party_revision => PartyRevision
     },

@@ -1017,23 +1017,24 @@ compute_fees(Route, VS, DomainRevision) ->
     ProviderRef = ff_payouts_provider:ref(ProviderID),
     TerminalRef = ff_payouts_terminal:ref(TerminalID),
     case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision) of
-        {ok, ProviderTerminalTermset} ->
-            case ProviderTerminalTermset of
-                #domain_ProvisionTermSet{
-                    wallet = #domain_WalletProvisionTerms{
-                        withdrawals = #domain_WithdrawalProvisionTerms{
-                            cash_flow = {value, CashFlow}
-                        }
-                    }
-                } ->
-                    {ok, #{
-                        postings => ff_cash_flow:decode_domain_postings(CashFlow)
-                    }};
-                _ ->
-                    {error, {misconfiguration, {missing, withdrawal_terms}}}
-            end;
+        {ok, #domain_ProvisionTermSet{
+            wallet = #domain_WalletProvisionTerms{
+                withdrawals = #domain_WithdrawalProvisionTerms{
+                    cash_flow = CashFlowSelector
+                }
+            }
+        }} ->
+            get_selector_value(cash_flow, CashFlowSelector);
         {error, Error} ->
             {error, Error}
+    end.
+
+get_selector_value(Name, Selector) ->
+    case Selector of
+        {value, V} ->
+            V;
+        Ambiguous ->
+            error({misconfiguration, {'Could not reduce selector to a value', {Name, Ambiguous}}})
     end.
 
 -spec ensure_domain_revision_defined(domain_revision() | undefined) -> domain_revision().

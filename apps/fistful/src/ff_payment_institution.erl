@@ -68,29 +68,46 @@ get(PaymentInstitutionID, VS, DomainRevision) ->
         decode(PaymentInstitutionID, PaymentInstitution)
     end).
 
+get_selector_value(Name, Selector) ->
+    case Selector of
+        {value, V} ->
+            V;
+        Ambiguous ->
+            {error, {misconfiguration, {'Could not reduce selector to a value', {Name, Ambiguous}}}}
+    end.
+
 -spec withdrawal_providers(payment_institution()) ->
     {ok, [ff_payouts_provider:id()]}
     | {error, term()}.
-withdrawal_providers(#{withdrawal_providers := {value, Providers}}) ->
-    {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-withdrawal_providers(#{withdrawal_providers := _} = PaymentInstitution) ->
-    {error, {misconfiguration, {'No reduced withdrawal providers in a given payment institution', PaymentInstitution}}}.
+withdrawal_providers(#{withdrawal_providers := ProvidersSelector}) ->
+    case get_selector_value(withdrawal_providers, ProvidersSelector) of
+        {error, Error} ->
+            {error, Error};
+        Providers ->
+            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]}
+    end.
 
 -spec p2p_transfer_providers(payment_institution()) ->
     {ok, [ff_payouts_provider:id()]}
     | {error, term()}.
-p2p_transfer_providers(#{p2p_providers := {value, Providers}}) ->
-    {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-p2p_transfer_providers(#{p2p_providers := _} = PaymentInstitution) ->
-    {error, {misconfiguration, {'No reduced p2p providers in a given payment institution', PaymentInstitution}}}.
+p2p_transfer_providers(#{p2p_providers := ProvidersSelector}) ->
+    case get_selector_value(p2p_providers, ProvidersSelector) of
+        {error, Error} ->
+            {error, Error};
+        Providers ->
+            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]}
+    end.
 
 -spec p2p_inspector(payment_institution()) ->
     {ok, p2p_inspector:inspector_ref()}
     | {error, term()}.
-p2p_inspector(#{p2p_inspector := {value, InspectorRef}}) ->
-    {ok, InspectorRef};
-p2p_inspector(#{p2p_inspector := InspectorSelector} = PaymentInstitution) when InspectorSelector =:= undefined ->
-    {error, {misconfiguration, {'No reduced p2p inspector in a given payment_institution', PaymentInstitution}}}.
+p2p_inspector(#{p2p_inspector := P2PInspectorSelector}) ->
+    case get_selector_value(p2p_inspector, P2PInspectorSelector) of
+        {error, Error} ->
+            {error, Error};
+        InspectorRef ->
+            {ok, InspectorRef}
+    end.
 
 -spec system_accounts(payment_institution(), domain_revision()) ->
     {ok, system_accounts()}

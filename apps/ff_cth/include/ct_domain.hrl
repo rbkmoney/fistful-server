@@ -64,4 +64,15 @@
     details = D
 }).
 
+-define(bank_card(BankName),
+    {bank_card, #domain_BankCard{
+        token = <<>>,
+        bin = <<>>,
+        last_digits = <<>>,
+        bank_name = <<"bank">>,
+        payment_system_deprecated = visa,
+        issuer_country = rus
+    }}
+).
+
 -endif.

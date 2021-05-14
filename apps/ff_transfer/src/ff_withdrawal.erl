@@ -1024,17 +1024,19 @@ compute_fees(Route, VS, DomainRevision) ->
                 }
             }
         }} ->
-            get_selector_value(cash_flow, CashFlowSelector);
+            cash_flow_postings(CashFlowSelector);
         {error, Error} ->
             {error, Error}
     end.
 
-get_selector_value(Name, Selector) ->
-    case Selector of
-        {value, V} ->
-            V;
+cash_flow_postings(CashFlowSelector) ->
+    case CashFlowSelector of
+        {value, CashFlow} ->
+            {ok, #{
+                postings => ff_cash_flow:decode_domain_postings(CashFlow)
+            }};
         Ambiguous ->
-            error({misconfiguration, {'Could not reduce selector to a value', {Name, Ambiguous}}})
+            error({misconfiguration, {'Could not reduce selector to a value', {cash_flow, Ambiguous}}})
     end.
 
 -spec ensure_domain_revision_defined(domain_revision() | undefined) -> domain_revision().

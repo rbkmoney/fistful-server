@@ -71,7 +71,7 @@ get(PaymentInstitutionID, VS, DomainRevision) ->
 get_selector_value(Name, Selector) ->
     case Selector of
         {value, V} ->
-            V;
+            {ok, V};
         Ambiguous ->
             {error, {misconfiguration, {'Could not reduce selector to a value', {Name, Ambiguous}}}}
     end.
@@ -83,7 +83,7 @@ withdrawal_providers(#{withdrawal_providers := ProvidersSelector}) ->
     case get_selector_value(withdrawal_providers, ProvidersSelector) of
         {error, Error} ->
             {error, Error};
-        Providers ->
+        {ok, Providers} ->
             {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]}
     end.
 
@@ -94,7 +94,7 @@ p2p_transfer_providers(#{p2p_providers := ProvidersSelector}) ->
     case get_selector_value(p2p_providers, ProvidersSelector) of
         {error, Error} ->
             {error, Error};
-        Providers ->
+        {ok, Providers} ->
             {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]}
     end.
 
@@ -105,7 +105,7 @@ p2p_inspector(#{p2p_inspector := P2PInspectorSelector}) ->
     case get_selector_value(p2p_inspector, P2PInspectorSelector) of
         {error, Error} ->
             {error, Error};
-        InspectorRef ->
+        {ok, InspectorRef} ->
             {ok, InspectorRef}
     end.
 
@@ -115,9 +115,10 @@ p2p_inspector(#{p2p_inspector := P2PInspectorSelector}) ->
 system_accounts(PaymentInstitution, DomainRevision) ->
     #{
         identity := Identity,
-        system_accounts := {value, SystemAccountSetRef}
+        system_accounts := SystemAccountSetSelector
     } = PaymentInstitution,
     do(fun() ->
+        SystemAccountSetRef = unwrap(get_selector_value(system_accounts, SystemAccountSetSelector)),
         SystemAccountSet = unwrap(ff_domain_config:object(DomainRevision, {system_account_set, SystemAccountSetRef})),
         decode_system_account_set(Identity, SystemAccountSet)
     end).

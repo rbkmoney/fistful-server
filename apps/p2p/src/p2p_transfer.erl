@@ -226,6 +226,8 @@
 -type contract_params() :: p2p_party:contract_params().
 -type deadline() :: p2p_session:deadline().
 -type metadata() :: ff_entity_context:md().
+-type party_varset() :: ff_varset:varset().
+-type provider_ref() :: ff_p2p_provider:provider_ref().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -649,13 +651,13 @@ process_risk_scoring(P2PTransferState) ->
 do_risk_scoring(P2PTransferState) ->
     DomainRevision = domain_revision(P2PTransferState),
     {ok, Identity} = get_identity(owner(P2PTransferState)),
-    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     PartyVarset = create_varset(Identity, P2PTransferState),
-    {ok, InspectorRef} = ff_payment_institution:compute_p2p_inspector(PaymentInstitution, PartyVarset),
+    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+    {ok, InspectorRef} = ff_payment_institution:p2p_inspector(PaymentInstitution),
     {ok, Inspector} = ff_domain_config:object(
         DomainRevision,
-        {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}
+        {p2p_inspector, InspectorRef}
     ),
     Score =
         case genlib_app:env(p2p, score_id, undefined) of
@@ -735,13 +737,12 @@ get_fees(P2PTransferState) ->
     Route = route(P2PTransferState),
     #{provider_id := ProviderID} = Route,
     DomainRevision = domain_revision(P2PTransferState),
-    {ok, Provider} = ff_p2p_provider:get(DomainRevision, ProviderID),
     {ok, Identity} = get_identity(owner(P2PTransferState)),
     PartyVarset = create_varset(Identity, P2PTransferState),
     Body = body(P2PTransferState),
 
-    #{terms := ProviderTerms} = Provider,
-    ProviderFees = get_provider_fees(ProviderTerms, Body, PartyVarset),
+    ProviderRef = ff_p2p_provider:ref(ProviderID),
+    ProviderFees = get_provider_fees(ProviderRef, Body, PartyVarset, DomainRevision),
 
     PartyID = ff_identity:party(Identity),
     ContractID = ff_identity:contract(Identity),
@@ -764,19 +765,29 @@ get_fees(P2PTransferState) ->
     MerchantFees = get_merchant_fees(P2PMerchantTerms, Body),
     {ProviderFees, MerchantFees}.
 
--spec get_provider_fees(dmsl_domain_thrift:'ProvisionTermSet'(), body(), p2p_party:varset()) ->
+-spec get_provider_fees(ff_p2p_provider:provider_ref(), body(), p2p_party:varset(), domain_revision()) ->
     ff_fees_final:fees() | undefined.
-get_provider_fees(Terms, Body, PartyVarset) ->
-    #domain_ProvisionTermSet{
-        wallet = #domain_WalletProvisionTerms{
-            p2p = P2PTerms
-        }
-    } = Terms,
-    case P2PTerms of
-        #domain_P2PProvisionTerms{fees = FeeSelector} ->
-            {value, ProviderFees} = hg_selector:reduce(FeeSelector, PartyVarset),
+get_provider_fees(ProviderRef, Body, PartyVarset, DomainRevision) ->
+    case ff_party:compute_provider(ProviderRef, PartyVarset, DomainRevision) of
+        {ok, #domain_Provider{
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    p2p = #domain_P2PProvisionTerms{
+                        fees = FeeSelector
+                    }
+                }
+            }
+        }} ->
+            provider_fees(FeeSelector, Body);
+        _ ->
+            undefined
+    end.
+
+provider_fees(Selector, Body) ->
+    case Selector of
+        {value, ProviderFees} ->
             compute_fees(ProviderFees, Body);
-        undefined ->
+        _ ->
             undefined
     end.
 
@@ -844,22 +855,19 @@ make_final_cash_flow(P2PTransferState) ->
 
     {_Amount, CurrencyID} = Body,
     #{provider_id := ProviderID} = Route,
+    ProviderRef = ff_p2p_provider:ref(ProviderID),
     {ok, Provider} = ff_p2p_provider:get(ProviderID),
     ProviderAccounts = ff_p2p_provider:accounts(Provider),
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(
-        PaymentInstitution,
-        PartyVarset,
-        DomainRevision
-    ),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+    {ok, SystemAccounts} = ff_payment_institution:system_accounts(PaymentInstitution, DomainRevision),
     SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    ProviderFee = ff_p2p_provider:compute_fees(Provider, PartyVarset),
+    {ok, ProviderFee} = provider_compute_fees(ProviderRef, PartyVarset, DomainRevision),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID,
@@ -881,6 +889,32 @@ make_final_cash_flow(P2PTransferState) ->
     }),
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
+
+-spec provider_compute_fees(provider_ref(), party_varset(), domain_revision()) ->
+    {ok, ff_cash_flow:cash_flow_fee()}
+    | {error, term()}.
+provider_compute_fees(ProviderRef, PartyVarset, DomainRevision) ->
+    case ff_party:compute_provider(ProviderRef, PartyVarset, DomainRevision) of
+        {ok, Provider} ->
+            case Provider of
+                #domain_Provider{
+                    terms = #domain_ProvisionTermSet{
+                        wallet = #domain_WalletProvisionTerms{
+                            p2p = #domain_P2PProvisionTerms{
+                                cash_flow = {value, CashFlow}
+                            }
+                        }
+                    }
+                } ->
+                    {ok, #{
+                        postings => ff_cash_flow:decode_domain_postings(CashFlow)
+                    }};
+                _ ->
+                    {error, {misconfiguration, {missing, withdrawal_terms}}}
+            end;
+        {error, Error} ->
+            {error, Error}
+    end.
 
 -spec get_identity(identity_id()) -> {ok, identity()} | {error, notfound}.
 get_identity(IdentityID) ->

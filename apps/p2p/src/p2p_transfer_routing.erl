@@ -19,44 +19,57 @@
 
 -type identity() :: ff_identity:identity_state().
 -type domain_revision() :: ff_domain_config:revision().
--type party_varset() :: hg_selector:varset().
+-type party_varset() :: ff_varset:varset().
 
+-type provider_ref() :: ff_p2p_provider:provider_ref().
 -type provider_id() :: ff_p2p_provider:id().
--type provider() :: ff_p2p_provider:provider().
 
+-type terminal_ref() :: ff_p2p_terminal:terminal_ref().
 -type terminal_id() :: ff_p2p_terminal:id().
--type terminal() :: ff_p2p_terminal:terminal().
 
 -type routing_rule_route() :: ff_routing_rule:route().
 -type reject_context() :: ff_routing_rule:reject_context().
 
 -type p2p_provision_terms() :: dmsl_domain_thrift:'P2PProvisionTerms'().
+-type currency_selector() :: dmsl_domain_thrift:'CurrencySelector'().
+-type cash_limit_selector() :: dmsl_domain_thrift:'CashLimitSelector'().
+-type fee_selector() :: dmsl_domain_thrift:'FeeSelector'().
 
 -spec prepare_routes(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
-prepare_routes(PartyVarset, Identity, DomainRevision) ->
+prepare_routes(VS, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, VS, DomainRevision),
     {Routes, RejectContext0} = ff_routing_rule:gather_routes(
         PaymentInstitution,
         p2p_transfer_routing_rules,
-        PartyVarset,
+        VS,
         DomainRevision
     ),
-    {ValidatedRoutes, RejectContext1} = filter_valid_routes(Routes, RejectContext0, PartyVarset),
+    {ValidatedRoutes, RejectContext1} = filter_valid_routes(Routes, RejectContext0, VS, DomainRevision),
     case ValidatedRoutes of
         [] ->
             ff_routing_rule:log_reject_context(RejectContext1),
             logger:log(info, "Fallback to legacy method of routes gathering"),
-            {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset),
-            FilteredRoutes = filter_routes_legacy(Providers, PartyVarset),
+            gather_routes_legacy(PaymentInstitution, VS, DomainRevision);
+        _ ->
+            {ok, ValidatedRoutes}
+    end.
+
+-spec gather_routes_legacy(ff_payment_institution:payment_institution(), party_varset(), domain_revision()) ->
+    {ok, [route()]}
+    | {error, route_not_found}.
+gather_routes_legacy(PaymentInstitution, VS, DomainRevision) ->
+    case ff_payment_institution:p2p_transfer_providers(PaymentInstitution) of
+        {ok, Providers} ->
+            FilteredRoutes = filter_routes_legacy(Providers, VS, DomainRevision),
             case FilteredRoutes of
                 [] ->
                     {error, route_not_found};
                 [_Route | _] ->
                     {ok, FilteredRoutes}
             end;
-        [_Route | _] ->
-            {ok, ValidatedRoutes}
+        {error, _Error} ->
+            {error, route_not_found}
     end.
 
 -spec make_route(provider_id(), terminal_id() | undefined) -> route().
@@ -75,25 +88,24 @@ get_provider(#{provider_id := ProviderID}) ->
 get_terminal(Route) ->
     maps:get(terminal_id, Route, undefined).
 
--spec filter_valid_routes([routing_rule_route()], reject_context(), party_varset()) -> {[route()], reject_context()}.
-filter_valid_routes(Routes, RejectContext, PartyVarset) ->
-    filter_valid_routes_(Routes, PartyVarset, {#{}, RejectContext}).
+-spec filter_valid_routes([routing_rule_route()], reject_context(), party_varset(), domain_revision()) ->
+    {[route()], reject_context()}.
+filter_valid_routes(Routes, RejectContext, VS, DomainRevision) ->
+    filter_valid_routes_(Routes, VS, {#{}, RejectContext}, DomainRevision).
 
-filter_valid_routes_([], _, {Acc, RejectContext}) when map_size(Acc) == 0 ->
+filter_valid_routes_([], _, {Acc, RejectContext}, _DomainRevision) when map_size(Acc) == 0 ->
     {[], RejectContext};
-filter_valid_routes_([], _, {Acc, RejectContext}) ->
+filter_valid_routes_([], _, {Acc, RejectContext}, _DomainRevision) ->
     {convert_to_route(Acc), RejectContext};
-filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
+filter_valid_routes_([Route | Rest], VS, {Acc0, RejectContext0}, DomainRevision) ->
     Terminal = maps:get(terminal, Route),
     TerminalRef = maps:get(terminal_ref, Route),
     TerminalID = TerminalRef#domain_TerminalRef.id,
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
-    {ok, P2PTerminal} = ff_p2p_terminal:get(TerminalID),
-    {ok, P2PProvider} = ff_p2p_provider:get(ProviderID),
     {Acc, RejectConext} =
-        case validate_terms(P2PProvider, P2PTerminal, PartyVarset) of
+        case validate_terms(ProviderRef, TerminalRef, VS, DomainRevision) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0),
@@ -104,14 +116,14 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
                 RejectContext1 = maps:put(rejected_routes, RejectedRoutes1, RejectContext0),
                 {Acc0, RejectContext1}
         end,
-    filter_valid_routes_(Rest, PartyVarset, {RejectConext, Acc}).
+    filter_valid_routes_(Rest, VS, {RejectConext, Acc}, DomainRevision).
 
--spec filter_routes_legacy([provider_id()], party_varset()) -> [route()].
-filter_routes_legacy(Providers, VS) ->
+-spec filter_routes_legacy([provider_id()], party_varset(), domain_revision()) -> [route()].
+filter_routes_legacy(Providers, VS, DomainRevision) ->
     lists:foldr(
         fun(ProviderID, Acc) ->
-            {ok, Provider} = ff_p2p_provider:get(ProviderID),
-            case validate_terms_legacy(Provider, VS) of
+            ProviderRef = ff_p2p_provider:ref(ProviderID),
+            case validate_terms_legacy(ProviderRef, VS, DomainRevision) of
                 {ok, valid} ->
                     [make_route(ProviderID, undefined) | Acc];
                 {error, _Error} ->
@@ -122,36 +134,52 @@ filter_routes_legacy(Providers, VS) ->
         Providers
     ).
 
--spec validate_terms_legacy(provider(), party_varset()) ->
+-spec validate_terms_legacy(provider_ref(), party_varset(), domain_revision()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_terms_legacy(Provider, VS) ->
-    do(fun() ->
-        ProviderTerms = ff_p2p_provider:provision_terms(Provider),
-        unwrap(validate_combined_terms(ProviderTerms, VS))
-    end).
+validate_terms_legacy(ProviderRef, VS, DomainRevision) ->
+    case ff_party:compute_provider(ProviderRef, VS, DomainRevision) of
+        {ok, Provider} ->
+            case Provider of
+                #domain_Provider{
+                    terms = #domain_ProvisionTermSet{
+                        wallet = #domain_WalletProvisionTerms{
+                            p2p = ProviderTerms
+                        }
+                    }
+                } ->
+                    do_validate_terms(ProviderTerms, VS);
+                _ ->
+                    {error, {misconfiguration, {missing, p2p_terms}}}
+            end;
+        {error, Error} ->
+            {error, Error}
+    end.
 
--spec validate_terms(provider(), terminal(), party_varset()) ->
+-spec validate_terms(provider_ref(), terminal_ref(), party_varset(), domain_revision()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_terms(Provider, Terminal, VS) ->
-    do(fun() ->
-        ProviderTerms = ff_p2p_provider:provision_terms(Provider),
-        TerminalTerms = ff_p2p_terminal:provision_terms(Terminal),
-        _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
-        CombinedTerms = merge_p2p_terms(ProviderTerms, TerminalTerms),
-        unwrap(validate_combined_terms(CombinedTerms, VS))
-    end).
+validate_terms(ProviderRef, TerminalRef, VS, DomainRevision) ->
+    case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision) of
+        {ok, ProviderTerminalTermset} ->
+            case ProviderTerminalTermset of
+                #domain_ProvisionTermSet{
+                    wallet = #domain_WalletProvisionTerms{
+                        p2p = P2PProvisionTerms
+                    }
+                } ->
+                    do_validate_terms(P2PProvisionTerms, VS);
+                _ ->
+                    {error, {misconfiguration, {missing, p2p_terms}}}
+            end;
+        {error, Error} ->
+            {error, Error}
+    end.
 
-assert_terms_defined(undefined, undefined) ->
-    {error, terms_undefined};
-assert_terms_defined(_, _) ->
-    {ok, valid}.
-
--spec validate_combined_terms(p2p_provision_terms(), party_varset()) ->
+-spec do_validate_terms(p2p_provision_terms(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_combined_terms(CombinedTerms, VS) ->
+do_validate_terms(CombinedTerms, VS) ->
     do(fun() ->
         #domain_P2PProvisionTerms{
             currencies = CurrenciesSelector,
@@ -163,54 +191,39 @@ validate_combined_terms(CombinedTerms, VS) ->
         valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
     end).
 
-validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
-    {ok, Currencies} = hg_selector:reduce_to_value(CurrenciesSelector, VS),
+-spec validate_currencies(currency_selector(), party_varset()) ->
+    {ok, valid}
+    | {error, Error :: term()}.
+validate_currencies({value, Currencies}, #{currency := CurrencyRef}) ->
     case ordsets:is_element(CurrencyRef, Currencies) of
         true ->
             {ok, valid};
         false ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
-    end.
+    end;
+validate_currencies(_NotReducedSelector, _VS) ->
+    {error, {misconfiguration, {not_reduced_termset, currencies}}}.
 
-validate_fee_term_is_reduced(FeeSelector, VS) ->
-    {ok, _Fees} = hg_selector:reduce_to_value(FeeSelector, VS),
-    {ok, valid}.
+-spec validate_fee_term_is_reduced(fee_selector(), party_varset()) ->
+    {ok, valid}
+    | {error, Error :: term()}.
+validate_fee_term_is_reduced({value, _Fees}, _VS) ->
+    {ok, valid};
+validate_fee_term_is_reduced(_NotReducedSelector, _VS) ->
+    {error, {misconfiguration, {not_reduced_termset, currencies}}}.
 
-validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
-    {ok, CashRange} = hg_selector:reduce_to_value(CashLimitSelector, VS),
+-spec validate_cash_limit(cash_limit_selector(), party_varset()) ->
+    {ok, valid}
+    | {error, Error :: term()}.
+validate_cash_limit({value, CashRange}, #{cost := Cash}) ->
     case hg_cash_range:is_inside(Cash, CashRange) of
         within ->
             {ok, valid};
         _NotInRange ->
             {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
-    end.
-
--spec merge_p2p_terms(
-    ff_p2p_provider:provision_terms() | undefined,
-    ff_p2p_terminal:provision_terms() | undefined
-) -> ff_maybe:maybe(p2p_provision_terms()).
-merge_p2p_terms(
-    #domain_P2PProvisionTerms{
-        currencies = PCurrencies,
-        fees = PFees,
-        cash_limit = PCashLimit,
-        cash_flow = PCashflow
-    },
-    #domain_P2PProvisionTerms{
-        currencies = TCurrencies,
-        fees = TFees,
-        cash_limit = TCashLimit,
-        cash_flow = TCashflow
-    }
-) ->
-    #domain_P2PProvisionTerms{
-        currencies = ff_maybe:get_defined(TCurrencies, PCurrencies),
-        fees = ff_maybe:get_defined(PFees, TFees),
-        cash_limit = ff_maybe:get_defined(TCashLimit, PCashLimit),
-        cash_flow = ff_maybe:get_defined(TCashflow, PCashflow)
-    };
-merge_p2p_terms(ProviderTerms, TerminalTerms) ->
-    ff_maybe:get_defined(TerminalTerms, ProviderTerms).
+    end;
+validate_cash_limit(_NotReducedSelector, _VS) ->
+    {error, {misconfiguration, {not_reduced_termset, cash_range}}}.
 
 convert_to_route(ProviderTerminalMap) ->
     lists:foldl(

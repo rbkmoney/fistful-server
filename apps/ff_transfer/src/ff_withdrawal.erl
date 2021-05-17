@@ -263,7 +263,7 @@
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 -type terms() :: ff_party:terms().
--type party_varset() :: hg_selector:varset().
+-type party_varset() :: ff_varset:varset().
 -type metadata() :: ff_entity_context:md().
 -type resource_descriptor() :: ff_destination:resource_id().
 
@@ -977,12 +977,8 @@ make_final_cash_flow(Withdrawal) ->
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(
-        PaymentInstitution,
-        PartyVarset,
-        DomainRevision
-    ),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+    {ok, SystemAccounts} = ff_payment_institution:system_accounts(PaymentInstitution, DomainRevision),
     SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
@@ -1012,20 +1008,35 @@ make_final_cash_flow(Withdrawal) ->
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
 
--spec compute_fees(route(), party_varset(), domain_revision()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
+-spec compute_fees(route(), party_varset(), domain_revision()) ->
+    {ok, ff_cash_flow:cash_flow_fee()}
+    | {error, term()}.
 compute_fees(Route, VS, DomainRevision) ->
-    case ff_withdrawal_routing:provision_terms(Route, DomainRevision) of
-        #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} ->
-            case hg_selector:reduce_to_value(CashFlowSelector, VS) of
-                {ok, CashFlow} ->
-                    {ok, #{
-                        postings => ff_cash_flow:decode_domain_postings(CashFlow)
-                    }};
-                {error, Error} ->
-                    {error, Error}
-            end;
-        _ ->
-            {error, {misconfiguration, {missing, withdrawal_terms}}}
+    ProviderID = maps:get(provider_id, Route),
+    TerminalID = maps:get(terminal_id, Route),
+    ProviderRef = ff_payouts_provider:ref(ProviderID),
+    TerminalRef = ff_payouts_terminal:ref(TerminalID),
+    case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision) of
+        {ok, #domain_ProvisionTermSet{
+            wallet = #domain_WalletProvisionTerms{
+                withdrawals = #domain_WithdrawalProvisionTerms{
+                    cash_flow = CashFlowSelector
+                }
+            }
+        }} ->
+            cash_flow_postings(CashFlowSelector);
+        {error, Error} ->
+            {error, Error}
+    end.
+
+cash_flow_postings(CashFlowSelector) ->
+    case CashFlowSelector of
+        {value, CashFlow} ->
+            {ok, #{
+                postings => ff_cash_flow:decode_domain_postings(CashFlow)
+            }};
+        Ambiguous ->
+            error({misconfiguration, {'Could not reduce selector to a value', {cash_flow, Ambiguous}}})
     end.
 
 -spec ensure_domain_revision_defined(domain_revision() | undefined) -> domain_revision().

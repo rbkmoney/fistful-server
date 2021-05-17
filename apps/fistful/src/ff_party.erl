@@ -90,7 +90,10 @@
 -export([validate_p2p_template_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
+-export([compute_payment_institution/3]).
 -export([compute_routing_ruleset/3]).
+-export([compute_provider/3]).
+-export([compute_provider_terminal_terms/4]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_p2p_cash_flow_plan/1]).
 -export([get_w2w_cash_flow_plan/1]).
@@ -110,9 +113,15 @@
 -type domain_revision() :: ff_domain_config:revision().
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet_state().
+-type payinst_ref() :: ff_payment_institution:payinst_ref().
+-type payment_institution() :: dmsl_domain_thrift:'PaymentInstitution'().
 -type payment_institution_id() :: ff_payment_institution:id().
 -type routing_ruleset_ref() :: dmsl_domain_thrift:'RoutingRulesetRef'().
 -type routing_ruleset() :: dmsl_domain_thrift:'RoutingRuleset'().
+-type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
+-type terminal_ref() :: dmsl_domain_thrift:'TerminalRef'().
+-type provider() :: dmsl_domain_thrift:'Provider'().
+-type provision_term_set() :: dmsl_domain_thrift:'ProvisionTermSet'().
 -type bound_type() :: 'exclusive' | 'inclusive'.
 -type cash_range() :: {{bound_type(), cash()}, {bound_type(), cash()}}.
 
@@ -250,14 +259,14 @@ get_identity_payment_institution_id(Identity) ->
 -spec get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) -> Result when
     PartyID :: id(),
     ContractID :: contract_id(),
-    Varset :: hg_selector:varset(),
+    Varset :: ff_varset:varset(),
     Timestamp :: timestamp(),
     PartyRevision :: revision(),
     DomainRevision :: domain_revision(),
     Result :: {ok, terms()} | {error, Error},
     Error :: get_contract_terms_error().
 get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) ->
-    DomainVarset = encode_varset(Varset),
+    DomainVarset = ff_varset:encode(Varset),
     TimestampStr = ff_time:to_rfc3339(Timestamp),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_contract_terms(
@@ -283,13 +292,35 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
             erlang:error({unexpected, Unexpected})
     end.
 
+-spec compute_payment_institution(PaymentInstitutionRef, Varset, DomainRevision) -> Result when
+    PaymentInstitutionRef :: payinst_ref(),
+    Varset :: ff_varset:varset(),
+    DomainRevision :: domain_revision(),
+    Result :: {ok, payment_institution()} | {error, payinst_not_found}.
+compute_payment_institution(PaymentInstitutionRef, Varset, DomainRevision) ->
+    DomainVarset = ff_varset:encode(Varset),
+    {Client, Context} = get_party_client(),
+    Result = party_client_thrift:compute_payment_institution(
+        PaymentInstitutionRef,
+        DomainRevision,
+        DomainVarset,
+        Client,
+        Context
+    ),
+    case Result of
+        {ok, PaymentInstitution} ->
+            {ok, PaymentInstitution};
+        {error, #payproc_PaymentInstitutionNotFound{}} ->
+            {error, payinst_not_found}
+    end.
+
 -spec compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) -> Result when
     RoutingRulesetRef :: routing_ruleset_ref(),
-    Varset :: hg_selector:varset(),
+    Varset :: ff_varset:varset(),
     DomainRevision :: domain_revision(),
     Result :: {ok, routing_ruleset()} | {error, ruleset_not_found}.
 compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
-    DomainVarset = encode_varset(Varset),
+    DomainVarset = ff_varset:encode(Varset),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_routing_ruleset(
         RoutingRulesetRef,
@@ -303,6 +334,54 @@ compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
             {ok, RoutingRuleset};
         {error, #payproc_RuleSetNotFound{}} ->
             {error, ruleset_not_found}
+    end.
+
+-spec compute_provider(ProviderRef, Varset, DomainRevision) -> Result when
+    ProviderRef :: provider_ref(),
+    Varset :: ff_varset:varset(),
+    DomainRevision :: domain_revision(),
+    Result :: {ok, provider()} | {error, provider_not_found}.
+compute_provider(ProviderRef, Varset, DomainRevision) ->
+    DomainVarset = ff_varset:encode(Varset),
+    {Client, Context} = get_party_client(),
+    Result = party_client_thrift:compute_provider(
+        ProviderRef,
+        DomainRevision,
+        DomainVarset,
+        Client,
+        Context
+    ),
+    case Result of
+        {ok, Provider} ->
+            {ok, Provider};
+        {error, #payproc_ProviderNotFound{}} ->
+            {error, provider_not_found}
+    end.
+
+-spec compute_provider_terminal_terms(ProviderRef, TerminalRef, Varset, DomainRevision) -> Result when
+    ProviderRef :: provider_ref(),
+    TerminalRef :: terminal_ref(),
+    Varset :: ff_varset:varset(),
+    DomainRevision :: domain_revision(),
+    Result :: {ok, provision_term_set()} | {error, provider_not_found} | {error, terminal_not_found}.
+compute_provider_terminal_terms(ProviderRef, TerminalRef, Varset, DomainRevision) ->
+    DomainVarset = ff_varset:encode(Varset),
+    {Client, Context} = get_party_client(),
+    Result = party_client_thrift:compute_provider_terminal_terms(
+        ProviderRef,
+        TerminalRef,
+        DomainRevision,
+        DomainVarset,
+        Client,
+        Context
+    ),
+    case Result of
+        {ok, RoutingRuleset} ->
+            {ok, RoutingRuleset};
+        {error, #payproc_ProviderNotFound{}} ->
+            {error, provider_not_found};
+        {error, #payproc_TerminalNotFound{}} ->
+            {error, terminal_not_found}
     end.
 
 -spec validate_account_creation(terms(), currency_id()) -> Result when
@@ -880,29 +959,3 @@ validate_attempt_limit(AttemptLimit) when AttemptLimit > 0 ->
     {ok, valid};
 validate_attempt_limit(AttemptLimit) ->
     {error, {terms_violation, {attempt_limit, AttemptLimit}}}.
-
-%% Varset stuff
-
--spec encode_varset(hg_selector:varset()) -> dmsl_payment_processing_thrift:'Varset'().
-encode_varset(Varset) ->
-    #payproc_Varset{
-        currency = genlib_map:get(currency, Varset),
-        amount = genlib_map:get(cost, Varset),
-        wallet_id = genlib_map:get(wallet_id, Varset),
-        payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset)),
-        p2p_tool = genlib_map:get(p2p_tool, Varset),
-        party_id = genlib_map:get(party_id, Varset)
-    }.
-
--spec encode_payment_method(ff_destination:resource() | undefined) ->
-    dmsl_domain_thrift:'PaymentMethodRef'() | undefined.
-encode_payment_method(undefined) ->
-    undefined;
-encode_payment_method({bank_card, #domain_BankCard{payment_system_deprecated = PaymentSystem}}) ->
-    #domain_PaymentMethodRef{
-        id = {bank_card_deprecated, PaymentSystem}
-    };
-encode_payment_method({crypto_currency_deprecated, CryptoCurrency}) ->
-    #domain_PaymentMethodRef{
-        id = {crypto_currency_deprecated, CryptoCurrency}
-    }.

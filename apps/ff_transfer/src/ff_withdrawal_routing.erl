@@ -22,13 +22,13 @@
 
 -type identity() :: ff_identity:identity_state().
 -type domain_revision() :: ff_domain_config:revision().
--type party_varset() :: hg_selector:varset().
+-type party_varset() :: ff_varset:varset().
 
+-type provider_ref() :: ff_payouts_provider:provider_ref().
 -type provider_id() :: ff_payouts_provider:id().
--type provider() :: ff_payouts_provider:provider().
 
+-type terminal_ref() :: ff_payouts_terminal:terminal_ref().
 -type terminal_id() :: ff_payouts_terminal:id().
--type terminal() :: ff_payouts_terminal:terminal().
 -type terminal_priority() :: ff_payouts_terminal:terminal_priority().
 
 -type routing_rule_route() :: ff_routing_rule:route().
@@ -43,7 +43,7 @@
 -spec prepare_routes(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
 prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
     {Routes, RejectContext0} = ff_routing_rule:gather_routes(
         PaymentInstitution,
         withdrawal_routing_rules,
@@ -55,7 +55,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
         [] ->
             ff_routing_rule:log_reject_context(RejectContext1),
             logger:log(info, "Fallback to legacy method of routes gathering"),
-            case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
+            case ff_payment_institution:withdrawal_providers(PaymentInstitution) of
                 {ok, Providers} ->
                     filter_routes_legacy(Providers, PartyVarset, DomainRevision);
                 {error, {misconfiguration, _Details} = Error} ->
@@ -65,7 +65,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
                     _ = logger:warning("Route search failed: ~p", [Error]),
                     {error, route_not_found}
             end;
-        [_Route | _] ->
+        _ ->
             {ok, ValidatedRoutes}
     end.
 
@@ -87,7 +87,8 @@ get_terminal(Route) ->
 
 -spec provision_terms(route(), domain_revision()) -> ff_maybe:maybe(withdrawal_provision_terms()).
 provision_terms(Route, DomainRevision) ->
-    {ok, Provider} = ff_payouts_provider:get(get_provider(Route), DomainRevision),
+    ProviderID = get_provider(Route),
+    {ok, Provider} = ff_payouts_provider:get(ProviderID, DomainRevision),
     ProviderTerms = ff_payouts_provider:provision_terms(Provider),
     TerminalTerms =
         case get_terminal(Route) of
@@ -144,10 +145,8 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}, Domain
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
-    {ok, PayoutsTerminal} = ff_payouts_terminal:get(TerminalID, DomainRevision),
-    {ok, PayoutsProvider} = ff_payouts_provider:get(ProviderID, DomainRevision),
     {Acc, RejectConext} =
-        case validate_terms(PayoutsProvider, PayoutsTerminal, PartyVarset) of
+        case validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0),
@@ -172,10 +171,10 @@ filter_routes_legacy_([], _PartyVarset, _DomainRevision, Acc) when map_size(Acc)
 filter_routes_legacy_([], _PartyVarset, _DomainRevision, Acc) ->
     {ok, convert_to_route(Acc)};
 filter_routes_legacy_([ProviderID | Rest], PartyVarset, DomainRevision, Acc0) ->
-    Provider = unwrap(ff_payouts_provider:get(ProviderID, DomainRevision)),
-    {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
+    ProviderRef = ff_payouts_provider:ref(ProviderID),
+    {ok, TerminalsWithPriority} = compute_withdrawal_terminals_with_priority(ProviderRef, PartyVarset, DomainRevision),
     Acc =
-        case get_valid_terminals_with_priority(TerminalsWithPriority, Provider, PartyVarset, DomainRevision, []) of
+        case get_valid_terminals_with_priority(TerminalsWithPriority, ProviderRef, PartyVarset, DomainRevision, []) of
             [] ->
                 Acc0;
             TPL ->
@@ -190,50 +189,65 @@ filter_routes_legacy_([ProviderID | Rest], PartyVarset, DomainRevision, Acc0) ->
         end,
     filter_routes_legacy_(Rest, PartyVarset, DomainRevision, Acc).
 
--spec get_provider_terminals_with_priority(provider(), party_varset()) -> {ok, [{terminal_id(), terminal_priority()}]}.
-get_provider_terminals_with_priority(Provider, VS) ->
-    case ff_payouts_provider:compute_withdrawal_terminals_with_priority(Provider, VS) of
-        {ok, TerminalsWithPriority} ->
-            {ok, TerminalsWithPriority};
-        {error, {misconfiguration, _Details} = Error} ->
-            _ = logger:warning("Provider terminal search failed: ~p", [Error]),
-            {ok, []}
+-spec compute_withdrawal_terminals_with_priority(provider_ref(), party_varset(), domain_revision()) ->
+    {ok, [{terminal_id(), terminal_priority()}]} | {error, term()}.
+compute_withdrawal_terminals_with_priority(ProviderRef, VS, DomainRevision) ->
+    case ff_party:compute_provider(ProviderRef, VS, DomainRevision) of
+        {ok, Provider} ->
+            case Provider of
+                #domain_Provider{
+                    terminal = {value, Terminals}
+                } ->
+                    {ok, [
+                        {TerminalID, Priority}
+                     || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals
+                    ]};
+                _ ->
+                    Error = {misconfiguration, {missing, terminal_selector}},
+                    _ = logger:warning("Provider terminal search failed: ~p", [Error]),
+                    {ok, []}
+            end;
+        {error, Error} ->
+            {error, Error}
     end.
 
-get_valid_terminals_with_priority([], _Provider, _PartyVarset, _DomainRevision, Acc) ->
+get_valid_terminals_with_priority([], _ProviderRef, _PartyVarset, _DomainRevision, Acc) ->
     Acc;
-get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, PartyVarset, DomainRevision, Acc0) ->
-    Terminal = unwrap(ff_payouts_terminal:get(TerminalID, DomainRevision)),
+get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], ProviderRef, PartyVarset, DomainRevision, Acc0) ->
+    TerminalRef = ff_payouts_terminal:ref(TerminalID),
     Acc =
-        case validate_terms(Provider, Terminal, PartyVarset) of
+        case validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
             {ok, valid} ->
                 [{TerminalID, Priority} | Acc0];
             {error, _Error} ->
                 Acc0
         end,
-    get_valid_terminals_with_priority(Rest, Provider, PartyVarset, DomainRevision, Acc).
+    get_valid_terminals_with_priority(Rest, ProviderRef, PartyVarset, DomainRevision, Acc).
 
--spec validate_terms(provider(), terminal(), party_varset()) ->
+-spec validate_terms(provider_ref(), terminal_ref(), party_varset(), domain_revision()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_terms(Provider, Terminal, PartyVarset) ->
-    do(fun() ->
-        ProviderTerms = ff_payouts_provider:provision_terms(Provider),
-        TerminalTerms = ff_payouts_terminal:provision_terms(Terminal),
-        _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
-        CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
-        unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
-    end).
+validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) ->
+    case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
+        {ok, ProviderTerminalTermset} ->
+            case ProviderTerminalTermset of
+                #domain_ProvisionTermSet{
+                    wallet = #domain_WalletProvisionTerms{
+                        withdrawals = WithdrawalProvisionTerms
+                    }
+                } ->
+                    do_validate_terms(WithdrawalProvisionTerms, PartyVarset);
+                _ ->
+                    {error, {misconfiguration, {missing, withdrawal_terms}}}
+            end;
+        {error, Error} ->
+            {error, Error}
+    end.
 
-assert_terms_defined(undefined, undefined) ->
-    {error, terms_undefined};
-assert_terms_defined(_, _) ->
-    {ok, valid}.
-
--spec validate_combined_terms(withdrawal_provision_terms(), party_varset()) ->
+-spec do_validate_terms(withdrawal_provision_terms(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_combined_terms(CombinedTerms, PartyVarset) ->
+do_validate_terms(CombinedTerms, PartyVarset) ->
     do(fun() ->
         #domain_WithdrawalProvisionTerms{
             currencies = CurrenciesSelector,
@@ -267,26 +281,28 @@ validate_selectors_defined(Terms) ->
 -spec validate_currencies(currency_selector(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
-    Currencies = unwrap(hg_selector:reduce_to_value(CurrenciesSelector, VS)),
+validate_currencies({value, Currencies}, #{currency := CurrencyRef}) ->
     case ordsets:is_element(CurrencyRef, Currencies) of
         true ->
             {ok, valid};
         false ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
-    end.
+    end;
+validate_currencies(_NotReducedSelector, _VS) ->
+    {error, {misconfiguration, {not_reduced_termset, currencies}}}.
 
 -spec validate_cash_limit(cash_limit_selector(), party_varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
-validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
-    CashRange = unwrap(hg_selector:reduce_to_value(CashLimitSelector, VS)),
+validate_cash_limit({value, CashRange}, #{cost := Cash}) ->
     case hg_cash_range:is_inside(Cash, CashRange) of
         within ->
             {ok, valid};
         _NotInRange ->
             {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
-    end.
+    end;
+validate_cash_limit(_NotReducedSelector, _VS) ->
+    {error, {misconfiguration, {not_reduced_termset, cash_range}}}.
 
 convert_to_route(ProviderTerminalMap) ->
     lists:foldl(

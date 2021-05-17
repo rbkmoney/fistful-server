@@ -13,7 +13,7 @@
 -type terminal() :: dmsl_domain_thrift:'Terminal'().
 -type priority() :: integer().
 -type weight() :: integer().
--type varset() :: hg_selector:varset().
+-type varset() :: ff_varset:varset().
 -type revision() :: ff_domain_config:revision().
 -type routing_rule_tag() :: p2p_transfer_routing_rules | withdrawal_routing_rules.
 -type candidate() :: dmsl_domain_thrift:'RoutingCandidate'().

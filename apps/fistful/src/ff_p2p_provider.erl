@@ -21,6 +21,7 @@
 -type provision_terms() :: dmsl_domain_thrift:'P2PProvisionTerms'().
 
 -export_type([id/0]).
+-export_type([provider_ref/0]).
 -export_type([provider/0]).
 -export_type([adapter/0]).
 -export_type([adapter_opts/0]).
@@ -36,7 +37,6 @@
 -export([ref/1]).
 -export([get/1]).
 -export([get/2]).
--export([compute_fees/2]).
 
 %% Pipeline
 
@@ -99,16 +99,6 @@ get(DomainRevision, ID) ->
         P2PProvider = unwrap(ff_domain_config:object(DomainRevision, {provider, ref(ID)})),
         decode(ID, P2PProvider)
     end).
-
--spec compute_fees(provider(), hg_selector:varset()) -> ff_cash_flow:cash_flow_fee().
-compute_fees(#{terms := Terms}, VS) ->
-    #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
-    #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
-    #domain_P2PProvisionTerms{cash_flow = CashFlowSelector} = P2PTerms,
-    {ok, CashFlow} = hg_selector:reduce_to_value(CashFlowSelector, VS),
-    #{
-        postings => ff_cash_flow:decode_domain_postings(CashFlow)
-    }.
 
 decode(ID, #domain_Provider{
     proxy = Proxy,

@@ -22,6 +22,7 @@
 
 -export_type([id/0]).
 -export_type([provider/0]).
+-export_type([provider_ref/0]).
 -export_type([provision_terms/0]).
 -export_type([domain_revision/0]).
 
@@ -34,7 +35,6 @@
 
 -export([ref/1]).
 -export([get/2]).
--export([compute_withdrawal_terminals_with_priority/2]).
 
 %% Pipeline
 
@@ -91,27 +91,6 @@ get(ID, DomainRevision) ->
         Provider = unwrap(ff_domain_config:object(DomainRevision, {provider, ref(ID)})),
         decode(ID, Provider)
     end).
-
--spec compute_withdrawal_terminals_with_priority(provider(), hg_selector:varset()) ->
-    {ok, [{ff_payouts_terminal:id(), ff_payouts_terminal:terminal_priority()}]} | {error, term()}.
-compute_withdrawal_terminals_with_priority(Provider, VS) ->
-    case maps:get(terminal, Provider, undefined) of
-        Selector when Selector =/= undefined ->
-            compute_withdrawal_terminals_(Selector, VS);
-        _ ->
-            {error, {misconfiguration, {missing, terminal_selector}}}
-    end.
-
-compute_withdrawal_terminals_(TerminalSelector, VS) ->
-    case hg_selector:reduce_to_value(TerminalSelector, VS) of
-        {ok, Terminals} ->
-            {ok, [
-                {TerminalID, Priority}
-             || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals
-            ]};
-        Error ->
-            Error
-    end.
 
 %%
 

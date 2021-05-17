@@ -65,7 +65,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
                     _ = logger:warning("Route search failed: ~p", [Error]),
                     {error, route_not_found}
             end;
-        [_Route | _] ->
+        _ ->
             {ok, ValidatedRoutes}
     end.
 

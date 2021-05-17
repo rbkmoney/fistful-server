@@ -51,7 +51,7 @@ prepare_routes(VS, Identity, DomainRevision) ->
             ff_routing_rule:log_reject_context(RejectContext1),
             logger:log(info, "Fallback to legacy method of routes gathering"),
             gather_routes_legacy(PaymentInstitution, VS, DomainRevision);
-        [_Route | _] ->
+        _ ->
             {ok, ValidatedRoutes}
     end.
 

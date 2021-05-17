@@ -769,21 +769,24 @@ get_fees(P2PTransferState) ->
     ff_fees_final:fees() | undefined.
 get_provider_fees(ProviderRef, Body, PartyVarset, DomainRevision) ->
     case ff_party:compute_provider(ProviderRef, PartyVarset, DomainRevision) of
-        {ok, Provider} ->
-            case Provider of
-                #domain_Provider{
-                    terms = #domain_ProvisionTermSet{
-                        wallet = #domain_WalletProvisionTerms{
-                            p2p = #domain_P2PProvisionTerms{
-                                fees = {value, ProviderFees}
-                            }
-                        }
+        {ok, #domain_Provider{
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    p2p = #domain_P2PProvisionTerms{
+                        fees = FeeSelector
                     }
-                } ->
-                    compute_fees(ProviderFees, Body);
-                _ ->
-                    undefined
-            end;
+                }
+            }
+        }} ->
+            get_selector_value(FeeSelector, Body);
+        _ ->
+            undefined
+    end.
+
+get_selector_value(Selector, Body) ->
+    case Selector of
+        {value, ProviderFees} ->
+            compute_fees(ProviderFees, Body);
         _ ->
             undefined
     end.

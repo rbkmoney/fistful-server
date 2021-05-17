@@ -81,10 +81,10 @@ get_selector_value(Name, Selector) ->
     | {error, term()}.
 withdrawal_providers(#{withdrawal_providers := ProvidersSelector}) ->
     case get_selector_value(withdrawal_providers, ProvidersSelector) of
-        {error, Error} ->
-            {error, Error};
         {ok, Providers} ->
-            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]}
+            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
+        {error, Error} ->
+            {error, Error}
     end.
 
 -spec p2p_transfer_providers(payment_institution()) ->
@@ -92,10 +92,10 @@ withdrawal_providers(#{withdrawal_providers := ProvidersSelector}) ->
     | {error, term()}.
 p2p_transfer_providers(#{p2p_providers := ProvidersSelector}) ->
     case get_selector_value(p2p_providers, ProvidersSelector) of
-        {error, Error} ->
-            {error, Error};
         {ok, Providers} ->
-            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]}
+            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
+        {error, Error} ->
+            {error, Error}
     end.
 
 -spec p2p_inspector(payment_institution()) ->
@@ -103,10 +103,10 @@ p2p_transfer_providers(#{p2p_providers := ProvidersSelector}) ->
     | {error, term()}.
 p2p_inspector(#{p2p_inspector := P2PInspectorSelector}) ->
     case get_selector_value(p2p_inspector, P2PInspectorSelector) of
-        {error, Error} ->
-            {error, Error};
         {ok, InspectorRef} ->
-            {ok, InspectorRef}
+            {ok, InspectorRef};
+        {error, Error} ->
+            {error, Error}
     end.
 
 -spec system_accounts(payment_institution(), domain_revision()) ->

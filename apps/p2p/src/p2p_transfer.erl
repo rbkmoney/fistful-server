@@ -778,12 +778,12 @@ get_provider_fees(ProviderRef, Body, PartyVarset, DomainRevision) ->
                 }
             }
         }} ->
-            get_selector_value(FeeSelector, Body);
+            provider_fees(FeeSelector, Body);
         _ ->
             undefined
     end.
 
-get_selector_value(Selector, Body) ->
+provider_fees(Selector, Body) ->
     case Selector of
         {value, ProviderFees} ->
             compute_fees(ProviderFees, Body);

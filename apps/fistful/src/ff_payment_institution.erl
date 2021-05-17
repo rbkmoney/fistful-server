@@ -102,12 +102,7 @@ p2p_transfer_providers(#{p2p_providers := ProvidersSelector}) ->
     {ok, p2p_inspector:inspector_ref()}
     | {error, term()}.
 p2p_inspector(#{p2p_inspector := P2PInspectorSelector}) ->
-    case get_selector_value(p2p_inspector, P2PInspectorSelector) of
-        {ok, InspectorRef} ->
-            {ok, InspectorRef};
-        {error, Error} ->
-            {error, Error}
-    end.
+    get_selector_value(p2p_inspector, P2PInspectorSelector).
 
 -spec system_accounts(payment_institution(), domain_revision()) ->
     {ok, system_accounts()}

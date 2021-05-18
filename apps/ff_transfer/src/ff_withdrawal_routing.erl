@@ -229,17 +229,12 @@ get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], ProviderRef, 
     | {error, Error :: term()}.
 validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) ->
     case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
-        {ok, ProviderTerminalTermset} ->
-            case ProviderTerminalTermset of
-                #domain_ProvisionTermSet{
-                    wallet = #domain_WalletProvisionTerms{
-                        withdrawals = WithdrawalProvisionTerms
-                    }
-                } ->
-                    do_validate_terms(WithdrawalProvisionTerms, PartyVarset);
-                _ ->
-                    {error, {misconfiguration, {missing, withdrawal_terms}}}
-            end;
+        {ok, #domain_ProvisionTermSet{
+            wallet = #domain_WalletProvisionTerms{
+                withdrawals = WithdrawalProvisionTerms
+            }
+        }} ->
+            do_validate_terms(WithdrawalProvisionTerms, PartyVarset);
         {error, Error} ->
             {error, Error}
     end.

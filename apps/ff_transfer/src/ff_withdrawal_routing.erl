@@ -236,6 +236,7 @@ validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) ->
         }} ->
             do_validate_terms(WithdrawalProvisionTerms, PartyVarset);
         {error, Error} ->
+            %% TODO: test for provision_termset_undefined error after routing migration
             {error, Error}
     end.
 

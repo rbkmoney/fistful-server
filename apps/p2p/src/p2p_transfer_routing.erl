@@ -168,6 +168,7 @@ validate_terms(ProviderRef, TerminalRef, VS, DomainRevision) ->
         }} ->
             do_validate_terms(P2PProvisionTerms, VS);
         {error, Error} ->
+            %% TODO: test for provision_termset_undefined error after routing migration
             {error, Error}
     end.
 

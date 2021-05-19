@@ -381,7 +381,9 @@ compute_provider_terminal_terms(ProviderRef, TerminalRef, Varset, DomainRevision
         {error, #payproc_ProviderNotFound{}} ->
             {error, provider_not_found};
         {error, #payproc_TerminalNotFound{}} ->
-            {error, terminal_not_found}
+            {error, terminal_not_found};
+        {error, #payproc_ProvisionTermSetUndefined{}} ->
+            {error, provision_termset_undefined}
     end.
 
 -spec validate_account_creation(terms(), currency_id()) -> Result when

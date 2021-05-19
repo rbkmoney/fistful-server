@@ -161,18 +161,14 @@ validate_terms_legacy(ProviderRef, VS, DomainRevision) ->
     | {error, Error :: term()}.
 validate_terms(ProviderRef, TerminalRef, VS, DomainRevision) ->
     case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision) of
-        {ok, ProviderTerminalTermset} ->
-            case ProviderTerminalTermset of
-                #domain_ProvisionTermSet{
-                    wallet = #domain_WalletProvisionTerms{
-                        p2p = P2PProvisionTerms
-                    }
-                } ->
-                    do_validate_terms(P2PProvisionTerms, VS);
-                _ ->
-                    {error, {misconfiguration, {missing, p2p_terms}}}
-            end;
+        {ok, #domain_ProvisionTermSet{
+            wallet = #domain_WalletProvisionTerms{
+                p2p = P2PProvisionTerms
+            }
+        }} ->
+            do_validate_terms(P2PProvisionTerms, VS);
         {error, Error} ->
+            %% TODO: test for provision_termset_undefined error after routing migration
             {error, Error}
     end.
 

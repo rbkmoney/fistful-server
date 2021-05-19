@@ -114,11 +114,6 @@ p2p_terminal(Ref) ->
         data = #domain_Terminal{
             name = <<"P2PTerminal">>,
             description = <<"P2P terminal">>,
-            terms = #domain_ProvisionTermSet{
-                wallet = #domain_WalletProvisionTerms{
-                    p2p = #domain_P2PProvisionTerms{}
-                }
-            },
             provider_ref = ?prv(101)
         }
     }}.
@@ -271,11 +266,6 @@ withdrawal_terminal(?trm(N) = Ref) when N > 0, N < 6 ->
         data = #domain_Terminal{
             name = <<"WithdrawalTerminal">>,
             description = <<"Withdrawal terminal">>,
-            terms = #domain_ProvisionTermSet{
-                wallet = #domain_WalletProvisionTerms{
-                    withdrawals = #domain_WithdrawalProvisionTerms{}
-                }
-            },
             provider_ref = ?prv(1)
         }
     }};
@@ -284,12 +274,7 @@ withdrawal_terminal(?trm(6) = Ref) ->
         ref = Ref,
         data = #domain_Terminal{
             name = <<"WithdrawalTerminal">>,
-            description = <<"Withdrawal terminal">>,
-            terms = #domain_ProvisionTermSet{
-                wallet = #domain_WalletProvisionTerms{
-                    withdrawals = #domain_WithdrawalProvisionTerms{}
-                }
-            }
+            description = <<"Withdrawal terminal">>
         }
     }};
 withdrawal_terminal(?trm(7) = Ref) ->

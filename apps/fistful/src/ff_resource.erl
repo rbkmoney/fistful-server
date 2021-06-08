@@ -50,6 +50,7 @@
 }.
 
 -type resource_descriptor() :: {bank_card, bin_data_id()}.
+-type resource_type() :: bank_card | crypto_wallet.
 -type resource_params() ::
     {bank_card, resource_bank_card_params()}
     | {crypto_wallet, resource_crypto_wallet_params()}.
@@ -90,8 +91,9 @@
 -type card_type() :: charge_card | credit | debit | credit_or_debit.
 -type category() :: binary().
 
--export_type([resource/0]).
 -export_type([resource_descriptor/0]).
+-export_type([resource/0]).
+-export_type([resource_type/0]).
 -export_type([resource_params/0]).
 -export_type([bank_card/0]).
 -export_type([crypto_wallet/0]).
@@ -117,6 +119,7 @@
 -export([bank_name/1]).
 -export([exp_date/1]).
 -export([cardholder_name/1]).
+-export([resource_descriptor/1]).
 
 %% Pipeline
 
@@ -161,6 +164,12 @@ exp_date(BankCard) ->
 -spec cardholder_name(bank_card()) -> cardholder_name().
 cardholder_name(BankCard) ->
     maps:get(cardholder_name, BankCard, undefined).
+
+-spec resource_descriptor(resource() | undefined) -> resource_descriptor() | undefined.
+resource_descriptor({bank_card, #{bank_card := #{bin_data_id := ID}}}) ->
+    {bank_card, ID};
+resource_descriptor(_) ->
+    undefined.
 
 -spec create_resource(resource_params()) ->
     {ok, resource()}

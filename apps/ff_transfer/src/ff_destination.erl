@@ -17,76 +17,11 @@
 -type metadata() :: ff_entity_context:md().
 -type timestamp() :: ff_time:timestamp_ms().
 
--type resource_type() :: bank_card | crypto_wallet.
--type resource() ::
-    {bank_card, resource_bank_card()}
-    | {crypto_wallet, resource_crypto_wallet()}.
-
--type resource_full() ::
-    {bank_card, resource_full_bank_card()}
-    | {crypto_wallet, resource_crypto_wallet()}.
-
--type resource_full_bank_card() :: #{
-    bank_card := full_bank_card(),
-    auth_data => bank_card_auth_data()
-}.
-
--type full_bank_card() :: #{
-    token := binary(),
-    bin => binary(),
-    payment_system := ff_bin_data:payment_system(),
-    masked_pan => binary(),
-    bank_name => binary(),
-    iso_country_code => atom(),
-    card_type => charge_card | credit | debit | credit_or_debit,
-    bin_data_id := ff_bin_data:bin_data_id(),
-    cardholder_name => binary(),
-    category => binary(),
-    exp_date => exp_date()
-}.
-
--type resource_bank_card() :: #{
-    bank_card := bank_card(),
-    auth_data => bank_card_auth_data()
-}.
-
--type bank_card() :: #{
-    token := binary(),
-    bin => binary(),
-    masked_pan => binary(),
-    cardholder_name => binary(),
-    exp_date => exp_date()
-}.
-
--type resource_id() ::
-    {bank_card, ff_bin_data:bin_data_id()}.
-
--type bank_card_auth_data() ::
-    {session, session_auth_data()}.
-
--type session_auth_data() :: #{
-    session_id := binary()
-}.
+-type resource_type() :: ff_resource:resource_type().
+-type resource() :: ff_resource:resource_params().
+-type resource_full() :: ff_resource:resource().
 
 -type exp_date() :: {integer(), integer()}.
-
--type resource_crypto_wallet() :: #{
-    crypto_wallet := crypto_wallet()
-}.
-
--type crypto_wallet() :: #{
-    id := binary(),
-    currency := crypto_currency()
-}.
-
--type crypto_currency() ::
-    {bitcoin, #{}}
-    | {bitcoin_cash, #{}}
-    | {litecoin, #{}}
-    | {ethereum, #{}}
-    | {zcash, #{}}
-    | {usdt, #{}}
-    | {ripple, #{tag => binary()}}.
 
 -define(ACTUAL_FORMAT_VERSION, 4).
 
@@ -137,7 +72,6 @@
 -export_type([destination_state/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
--export_type([resource_id/0]).
 -export_type([resource_type/0]).
 -export_type([resource_full/0]).
 -export_type([params/0]).
@@ -157,10 +91,6 @@
 -export([external_id/1]).
 -export([created_at/1]).
 -export([metadata/1]).
--export([resource_full/1]).
--export([resource_full/2]).
--export([process_resource_full/2]).
--export([resource_id/1]).
 
 %% API
 
@@ -232,45 +162,6 @@ metadata(#{metadata := Metadata}) ->
     Metadata;
 metadata(_Destination) ->
     undefined.
-
--spec resource_full(destination_state()) ->
-    {ok, resource_full()}
-    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-resource_full(Destination) ->
-    resource_full(Destination, undefined).
-
--spec resource_full(destination_state(), resource_id() | undefined) ->
-    {ok, resource_full()}
-    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-resource_full(Destination, ResourceID) ->
-    process_resource_full(resource(Destination), ResourceID).
-
--spec process_resource_full(resource(), resource_id() | undefined) ->
-    {ok, resource_full()}
-    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-process_resource_full({crypto_wallet, _CryptoWallet} = Resource, _ResourceID) ->
-    {ok, Resource};
-process_resource_full({bank_card, #{bank_card := #{token := Token} = BankCard} = Resource}, ResourceID) ->
-    do(fun() ->
-        UnwrappedResourceID = unwrap_resource_id(ResourceID),
-        BinData = unwrap(bin_data, ff_bin_data:get(Token, UnwrappedResourceID)),
-        KeyList = [payment_system, bank_name, iso_country_code, card_type, category],
-        ExtendData = maps:with(KeyList, BinData),
-        {bank_card, Resource#{
-            bank_card => maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})
-        }}
-    end).
-
--spec resource_id(resource_full() | undefined) -> resource_id() | undefined.
-resource_id({bank_card, #{bank_card := #{bin_data_id := ID}}}) ->
-    {bank_card, ID};
-resource_id(_) ->
-    undefined.
-
-unwrap_resource_id(undefined) ->
-    undefined;
-unwrap_resource_id({bank_card, ID}) ->
-    ID.
 
 %% API
 

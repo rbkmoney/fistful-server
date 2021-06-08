@@ -265,7 +265,7 @@
 -type terms() :: ff_party:terms().
 -type party_varset() :: ff_varset:varset().
 -type metadata() :: ff_entity_context:md().
--type resource_descriptor() :: ff_destination:resource_id().
+-type resource_descriptor() :: ff_resource:resource_descriptor().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -328,7 +328,7 @@ destination_resource(Withdrawal) ->
     DestinationID = destination_id(Withdrawal),
     {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
     Destination = ff_destination_machine:destination(DestinationMachine),
-    {ok, Resource} = ff_destination:resource_full(Destination),
+    {ok, Resource} = ff_resource:create_resource(ff_destination:resource(Destination)),
     Resource.
 
 %%
@@ -412,7 +412,7 @@ create(Params) ->
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         accessible = unwrap(wallet, ff_wallet:is_accessible(Wallet)),
         Destination = unwrap(destination, get_destination(DestinationID)),
-        Resource = unwrap(destination_resource, ff_destination:resource_full(Destination, ResourceDescriptor)),
+        Resource = unwrap(destination_resource, ff_resource:create_resource(ff_destination:resource(Destination), ResourceDescriptor)),
 
         Identity = get_wallet_identity(Wallet),
         PartyID = ff_identity:party(get_wallet_identity(Wallet)),
@@ -1122,7 +1122,7 @@ construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currenc
 get_quote(Params = #{destination_id := DestinationID, body := Body, wallet_id := WalletID}) ->
     do(fun() ->
         Destination = unwrap(destination, get_destination(DestinationID)),
-        Resource = unwrap(destination_resource, ff_destination:resource_full(Destination)),
+        Resource = unwrap(destination_resource, ff_resource:create_resource(ff_destination:resource(Destination))),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         Identity = get_wallet_identity(Wallet),
         ContractID = ff_identity:contract(Identity),
@@ -1219,7 +1219,7 @@ get_quote_(Params) ->
             quote_data => maps:get(quote_data, Quote),
             route => Route,
             operation_timestamp => Timestamp,
-            resource_descriptor => ff_destination:resource_id(Resource),
+            resource_descriptor => ff_resource:resource_descriptor(Resource),
             domain_revision => DomainRevision,
             party_revision => PartyRevision
         })

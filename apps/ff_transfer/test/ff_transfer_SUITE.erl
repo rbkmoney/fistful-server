@@ -349,7 +349,7 @@ deposit_withdrawal_to_digital_wallet(C) ->
     ok = pass_identification(ICID, IID, C),
     WdrID = process_withdrawal(WalID, DestID),
     Events = get_withdrawal_events(WdrID),
-    [2] = route_changes(Events).
+    [3] = route_changes(Events).
 
 deposit_quote_withdrawal_ok(C) ->
     Party = create_party(C),

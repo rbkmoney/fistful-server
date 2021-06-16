@@ -184,4 +184,15 @@ crypto_wallet_resource_test() ->
         }},
     ?assertEqual(Resource, unmarshal(resource, marshal(resource, Resource))).
 
+-spec digital_wallet_resource_test() -> _.
+digital_wallet_resource_test() ->
+    Resource =
+        {digital_wallet, #{
+            digital_wallet => #{
+                id => <<"a30e277c07400c9940628828949efd48">>,
+                data => {webmoney, #{}}
+            }
+        }},
+    ?assertEqual(Resource, unmarshal(resource, marshal(resource, Resource))).
+
 -endif.

@@ -412,7 +412,10 @@ create(Params) ->
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         accessible = unwrap(wallet, ff_wallet:is_accessible(Wallet)),
         Destination = unwrap(destination, get_destination(DestinationID)),
-        Resource = unwrap(destination_resource, ff_resource:create_resource(ff_destination:resource(Destination), ResourceDescriptor)),
+        Resource = unwrap(
+            destination_resource,
+            ff_resource:create_resource(ff_destination:resource(Destination), ResourceDescriptor)
+        ),
 
         Identity = get_wallet_identity(Wallet),
         PartyID = ff_identity:party(get_wallet_identity(Wallet)),
@@ -516,6 +519,7 @@ is_finished(#{status := pending}) ->
 -spec process_transfer(withdrawal_state()) -> process_result().
 process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
+    _ = logger:warning(<<"process transfer ~p~n">>, [Activity]),
     do_process_transfer(Activity, Withdrawal).
 
 %%
@@ -1114,7 +1118,9 @@ construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
         bank_name = maps:get(bank_name, ResourceBankCard, undefined)
     }};
 construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currency, _}}}}) ->
-    {crypto_currency_deprecated, Currency}.
+    {crypto_currency_deprecated, Currency};
+construct_payment_tool({digital_wallet, #{digital_wallet := #{id := ID, data := {DigitalWalletType, _}}}}) ->
+    {digital_wallet, #domain_DigitalWallet{id = ID, provider_deprecated = DigitalWalletType}}.
 
 %% Quote helpers
 

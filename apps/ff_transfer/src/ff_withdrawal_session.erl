@@ -223,7 +223,6 @@ process_session(#{status := {finished, _}, id := ID, result := Result, withdrawa
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
     ASt = adapter_state(SessionState),
-    _ = logger:warning(<<"process_session ~p~n">>, [Withdrawal]),
     {ok, ProcessResult} = ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts),
     #{intent := Intent} = ProcessResult,
     Events0 = process_next_state(ProcessResult, [], ASt),

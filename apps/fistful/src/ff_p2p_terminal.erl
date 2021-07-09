@@ -73,9 +73,9 @@ ref(ID) ->
     {ok, terminal()}
     | {error, notfound}.
 get(ID) ->
-    get(head, ID).
+    get(latest, ID).
 
--spec get(head | domain_revision(), id()) ->
+-spec get(ff_domain_config:revision(), id()) ->
     {ok, terminal()}
     | {error, notfound}.
 get(DomainRevision, ID) ->

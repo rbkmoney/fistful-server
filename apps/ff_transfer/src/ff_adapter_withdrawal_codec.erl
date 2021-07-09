@@ -192,6 +192,21 @@ marshal(
         destination_tag = maps:get(tag, Data, undefined)
     }};
 marshal(
+    resource,
+    {digital_wallet, #{
+        digital_wallet := #{
+            id := CryptoWalletID,
+            data := Data
+        }
+    }}
+) ->
+    {digital_wallet, #domain_DigitalWallet{
+        id = CryptoWalletID,
+        provider_deprecated = marshal(digital_wallet_provider, Data)
+    }};
+marshal(digital_wallet_provider, {Provider, _}) ->
+    Provider;
+marshal(
     withdrawal,
     #{
         id := ID,

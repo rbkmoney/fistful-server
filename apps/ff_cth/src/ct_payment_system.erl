@@ -147,7 +147,7 @@ start_optional_apps(_) ->
     [].
 
 setup_dominant(Options, C) ->
-    ok = ct_domain_config:upsert(domain_config(Options, C)).
+    _ = ct_domain_config:upsert(domain_config(Options, C)).
 
 configure_processing_apps(Options) ->
     ok = set_app_env(

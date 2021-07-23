@@ -258,7 +258,7 @@ apply_events(Es, M = #{history := Hs}) ->
         history := Hs ++
             [
                 {ID, Ts, Eb}
-             || {ID, Eb} <- lists:zip(lists:seq(Hl + 1, Hl + length(Es)), Es)
+                || {ID, Eb} <- lists:zip(lists:seq(Hl + 1, Hl + length(Es)), Es)
             ]
     }.
 

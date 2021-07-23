@@ -22,7 +22,7 @@
 
 -spec object(object_ref()) -> {ok, object_data()} | {error, notfound}.
 object(ObjectRef) ->
-    object(latest, ObjectRef).
+    object(head(), ObjectRef).
 
 -spec object(dmt_client:version(), object_ref()) -> {ok, object_data()} | {error, notfound}.
 object(Version, Ref = {Type, ObjectRef}) ->

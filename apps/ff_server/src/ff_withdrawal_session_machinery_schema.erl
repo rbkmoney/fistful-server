@@ -269,7 +269,7 @@ try_get_full_resource(Resource, Context) ->
         {ok, Fun} ->
             Fun(Resource);
         error ->
-            case ff_destination:process_resource_full(Resource, undefined) of
+            case ff_resource:create_resource(Resource) of
                 {ok, NewResource} ->
                     NewResource;
                 {error, _Reason} ->

@@ -21,6 +21,7 @@
 -export([deposit_withdrawal_ok/1]).
 -export([deposit_quote_withdrawal_ok/1]).
 -export([deposit_withdrawal_to_crypto_wallet/1]).
+-export([deposit_withdrawal_to_digital_wallet/1]).
 
 -type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -42,7 +43,8 @@ groups() ->
             deposit_via_admin_currency_fails,
             deposit_withdrawal_ok,
             deposit_quote_withdrawal_ok,
-            deposit_withdrawal_to_crypto_wallet
+            deposit_withdrawal_to_crypto_wallet,
+            deposit_withdrawal_to_digital_wallet
         ]}
     ].
 
@@ -91,6 +93,7 @@ end_per_testcase(_Name, _C) ->
 -spec deposit_via_admin_currency_fails(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
 -spec deposit_withdrawal_to_crypto_wallet(config()) -> test_return().
+-spec deposit_withdrawal_to_digital_wallet(config()) -> test_return().
 -spec deposit_quote_withdrawal_ok(config()) -> test_return().
 
 get_missing_fails(_C) ->
@@ -334,6 +337,20 @@ deposit_withdrawal_to_crypto_wallet(C) ->
     Events = get_withdrawal_events(WdrID),
     [2] = route_changes(Events).
 
+deposit_withdrawal_to_digital_wallet(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C, <<"quote-owner">>),
+    ICID = genlib:unique(),
+    WalID = create_wallet(IID, <<"WalletName">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID = create_source(IID, C),
+    ok = process_deposit(SrcID, WalID),
+    DestID = create_digital_destination(IID, C),
+    ok = pass_identification(ICID, IID, C),
+    WdrID = process_withdrawal(WalID, DestID),
+    Events = get_withdrawal_events(WdrID),
+    [3] = route_changes(Events).
+
 deposit_quote_withdrawal_ok(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C, <<"quote-owner">>),
@@ -508,6 +525,25 @@ create_crypto_destination(IID, _C) ->
             }
         }},
     DestID = create_destination(IID, <<"CryptoDestination">>, <<"RUB">>, Resource),
+    authorized = ct_helper:await(
+        authorized,
+        fun() ->
+            {ok, DestM} = ff_destination_machine:get(DestID),
+            Destination = ff_destination_machine:destination(DestM),
+            ff_destination:status(Destination)
+        end
+    ),
+    DestID.
+
+create_digital_destination(IID, _C) ->
+    Resource =
+        {digital_wallet, #{
+            digital_wallet => #{
+                id => <<"a30e277c07400c9940628828949efd48">>,
+                data => {webmoney, #{}}
+            }
+        }},
+    DestID = create_destination(IID, <<"DigitalDestination">>, <<"RUB">>, Resource),
     authorized = ct_helper:await(
         authorized,
         fun() ->

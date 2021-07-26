@@ -50,9 +50,11 @@
 }.
 
 -type resource_descriptor() :: {bank_card, bin_data_id()}.
+-type resource_type() :: bank_card | crypto_wallet | digital_wallet.
 -type resource_params() ::
     {bank_card, resource_bank_card_params()}
-    | {crypto_wallet, resource_crypto_wallet_params()}.
+    | {crypto_wallet, resource_crypto_wallet_params()}
+    | {digital_wallet, resource_digital_wallet_params()}.
 
 -type resource() ::
     {bank_card, resource_bank_card()}
@@ -67,9 +69,18 @@
     crypto_wallet := crypto_wallet()
 }.
 
+-type resource_digital_wallet_params() :: #{
+    digital_wallet := digital_wallet()
+}.
+
 -type crypto_wallet() :: #{
     id := binary(),
     currency := crypto_currency()
+}.
+
+-type digital_wallet() :: #{
+    id := binary(),
+    data := digital_wallet_data()
 }.
 
 -type crypto_currency() ::
@@ -81,6 +92,9 @@
     | {usdt, #{}}
     | {ripple, #{tag => binary()}}.
 
+-type digital_wallet_data() ::
+    {webmoney, #{}}.
+
 -type token() :: binary().
 -type bin() :: binary().
 -type payment_system() :: ff_bin_data:payment_system().
@@ -90,11 +104,13 @@
 -type card_type() :: charge_card | credit | debit | credit_or_debit.
 -type category() :: binary().
 
--export_type([resource/0]).
 -export_type([resource_descriptor/0]).
+-export_type([resource/0]).
+-export_type([resource_type/0]).
 -export_type([resource_params/0]).
 -export_type([bank_card/0]).
 -export_type([crypto_wallet/0]).
+-export_type([digital_wallet/0]).
 
 -export_type([token/0]).
 -export_type([bin/0]).
@@ -117,6 +133,7 @@
 -export([bank_name/1]).
 -export([exp_date/1]).
 -export([cardholder_name/1]).
+-export([resource_descriptor/1]).
 
 %% Pipeline
 
@@ -162,6 +179,12 @@ exp_date(BankCard) ->
 cardholder_name(BankCard) ->
     maps:get(cardholder_name, BankCard, undefined).
 
+-spec resource_descriptor(resource() | undefined) -> resource_descriptor() | undefined.
+resource_descriptor({bank_card, #{bank_card := #{bin_data_id := ID}}}) ->
+    {bank_card, ID};
+resource_descriptor(_) ->
+    undefined.
+
 -spec create_resource(resource_params()) ->
     {ok, resource()}
     | {error, {bin_data, ff_bin_data:bin_data_error()}}.
@@ -196,6 +219,22 @@ create_resource(
             crypto_wallet => #{
                 id => ID,
                 currency => Currency
+            }
+        }}};
+create_resource(
+    {digital_wallet, #{
+        digital_wallet := #{
+            id := ID,
+            data := Data
+        }
+    }},
+    _ResourceID
+) ->
+    {ok,
+        {digital_wallet, #{
+            digital_wallet => #{
+                id => ID,
+                data => Data
             }
         }}}.
 

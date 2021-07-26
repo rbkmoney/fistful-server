@@ -14,6 +14,7 @@
 -export([create_bank_card_destination_ok/1]).
 -export([create_crypto_wallet_destination_ok/1]).
 -export([create_ripple_wallet_destination_ok/1]).
+-export([create_digital_wallet_destination_ok/1]).
 
 -type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -30,7 +31,8 @@ groups() ->
         {default, [parallel], [
             create_bank_card_destination_ok,
             create_crypto_wallet_destination_ok,
-            create_ripple_wallet_destination_ok
+            create_ripple_wallet_destination_ok,
+            create_digital_wallet_destination_ok
         ]}
     ].
 
@@ -100,6 +102,17 @@ create_ripple_wallet_destination_ok(C) ->
                 id = <<"ab843336bf7738dc697522fbb90508de">>,
                 currency = ripple,
                 data = {ripple, #'CryptoDataRipple'{tag = undefined}}
+            }
+        }},
+    create_destination_ok(Resource, C).
+
+-spec create_digital_wallet_destination_ok(config()) -> test_return().
+create_digital_wallet_destination_ok(C) ->
+    Resource =
+        {digital_wallet, #'ResourceDigitalWallet'{
+            digital_wallet = #'DigitalWallet'{
+                id = <<"f195298af836f41d072cb390ee62bee8">>,
+                data = {webmoney, #'DigitalDataWebmoney'{}}
             }
         }},
     create_destination_ok(Resource, C).

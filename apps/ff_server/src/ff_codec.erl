@@ -139,6 +139,7 @@ marshal(resource_descriptor, {bank_card, BinDataID}) ->
 marshal(bank_card, BankCard = #{token := Token}) ->
     Bin = maps:get(bin, BankCard, undefined),
     PaymentSystem = maps:get(payment_system, BankCard, undefined),
+    PaymentSystemDeprecated = maps:get(payment_system_deprecated, BankCard, undefined),
     MaskedPan = maps:get(masked_pan, BankCard, undefined),
     BankName = maps:get(bank_name, BankCard, undefined),
     IsoCountryCode = maps:get(iso_country_code, BankCard, undefined),
@@ -151,7 +152,8 @@ marshal(bank_card, BankCard = #{token := Token}) ->
         bin = marshal(string, Bin),
         masked_pan = marshal(string, MaskedPan),
         bank_name = marshal(string, BankName),
-        payment_system_deprecated = maybe_marshal(payment_system, PaymentSystem),
+        payment_system = maybe_marshal(payment_system, PaymentSystem),
+        payment_system_deprecated = maybe_marshal(payment_system_deprecated, PaymentSystemDeprecated),
         issuer_country = maybe_marshal(iso_country_code, IsoCountryCode),
         card_type = maybe_marshal(card_type, CardType),
         exp_date = maybe_marshal(exp_date, ExpDate),
@@ -198,7 +200,11 @@ marshal(crypto_data, {ripple, Data}) ->
     }};
 marshal(digital_wallet_data, {webmoney, #{}}) ->
     {webmoney, #'DigitalDataWebmoney'{}};
-marshal(payment_system, V) when is_atom(V) ->
+marshal(payment_system, #{id := Ref}) when is_binary(Ref) ->
+    #'PaymentSystemRef'{
+        id = Ref
+    };
+marshal(payment_system_deprecated, V) when is_atom(V) ->
     V;
 marshal(iso_country_code, V) when is_atom(V) ->
     V;
@@ -401,7 +407,8 @@ unmarshal(bank_card, #'BankCard'{
     bin = Bin,
     masked_pan = MaskedPan,
     bank_name = BankName,
-    payment_system_deprecated = PaymentSystem,
+    payment_system = PaymentSystem,
+    payment_system_deprecated = PaymentSystemDeprecated,
     issuer_country = IsoCountryCode,
     card_type = CardType,
     bin_data_id = BinDataID,
@@ -411,6 +418,7 @@ unmarshal(bank_card, #'BankCard'{
     genlib_map:compact(#{
         token => unmarshal(string, Token),
         payment_system => maybe_unmarshal(payment_system, PaymentSystem),
+        payment_system_deprecated => maybe_unmarshal(payment_system_deprecated, PaymentSystemDeprecated),
         bin => maybe_unmarshal(string, Bin),
         masked_pan => maybe_unmarshal(string, MaskedPan),
         bank_name => maybe_unmarshal(string, BankName),
@@ -425,7 +433,11 @@ unmarshal(exp_date, #'BankCardExpDate'{
     year = Year
 }) ->
     {unmarshal(integer, Month), unmarshal(integer, Year)};
-unmarshal(payment_system, V) when is_atom(V) ->
+unmarshal(payment_system, #'PaymentSystemRef'{id = Ref}) when is_binary(Ref) ->
+    #{
+        id => unmarshal(string, Ref)
+    };
+unmarshal(payment_system_deprecated, V) when is_atom(V) ->
     V;
 unmarshal(iso_country_code, V) when is_atom(V) ->
     V;
@@ -557,11 +569,12 @@ parse_timestamp(Bin) ->
 bank_card_codec_test() ->
     BankCard = #{
         token => <<"token">>,
-        payment_system => visa,
+        payment_system => #{id => <<"foo">>},
+        payment_system_deprecated => visa,
         bin => <<"12345">>,
         masked_pan => <<"7890">>,
         bank_name => <<"bank">>,
-        iso_country_code => zmb,
+        issuer_country => zmb,
         card_type => credit_or_debit,
         exp_date => {12, 3456},
         cardholder_name => <<"name">>,
@@ -570,6 +583,22 @@ bank_card_codec_test() ->
     Type = {struct, struct, {ff_proto_base_thrift, 'BankCard'}},
     Binary = ff_proto_utils:serialize(Type, marshal(bank_card, BankCard)),
     Decoded = ff_proto_utils:deserialize(Type, Binary),
+    ?assertEqual(
+        Decoded,
+        #'BankCard'{
+            token = <<"token">>,
+            payment_system = #'PaymentSystemRef'{id = <<"foo">>},
+            payment_system_deprecated = visa,
+            bin = <<"12345">>,
+            masked_pan = <<"7890">>,
+            bank_name = <<"bank">>,
+            issuer_country = zmb,
+            card_type = credit_or_debit,
+            exp_date = #'BankCardExpDate'{month = 12, year = 3456},
+            cardholder_name = <<"name">>,
+            bin_data_id = {obj, #{{str, <<"foo">>} => {i, 1}}}
+        }
+    ),
     ?assertEqual(BankCard, unmarshal(bank_card, Decoded)).
 
 -spec fees_codec_test() -> _.

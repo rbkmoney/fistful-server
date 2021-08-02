@@ -5,10 +5,10 @@
 
 -type token() :: binary().
 -type iso_country_code() :: atom().
--type payment_system() :: #{
-	id := binary()
-}.
+-type payment_system() :: binary()
 -type payment_system_deprecated() :: atom().
+
+-type response_data() :: #'binbase_ResponseData'().
 -type bin_data() :: #{
     token := token(),
     id := bin_data_id(),
@@ -43,6 +43,7 @@
 -export_type([bin_data_error/0]).
 -export_type([iso_country_code/0]).
 -export_type([payment_system/0]).
+-export_type([payment_system_deprecated/0]).
 
 -export([get/2]).
 -export([id/1]).
@@ -95,10 +96,10 @@ encode_msgpack(V) when is_map(V) ->
 
 %%
 
+-spec decode_result(token(), response_data()) -> bin_data().
 decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Version}) ->
     #'binbase_BinData'{
 		payment_system = PaymentSystem,
-        payment_system_depecated = PaymentSystemDeprecated,
         bank_name = BankName,
         iso_country_code = IsoCountryCode,
         card_type = CardType,
@@ -109,8 +110,8 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
         genlib_map:compact(#{
             token => Token,
             id => decode_msgpack(BinDataID),
-			payment_system => unwrap(decode_payment_system(PaymentSystem),
-            payment_system_deprecated => unwrap(decode_payment_system_deprecated(PaymentSystemDeprecated)),
+			payment_system => unwrap(decode_payment_system(PaymentSystem)),
+            payment_system_deprecated => unwrap(decode_payment_system_deprecated(PaymentSystem)),
             bank_name => BankName,
             iso_country_code => unwrap(decode_residence(IsoCountryCode)),
             card_type => decode_card_type(CardType),
@@ -137,8 +138,8 @@ decode_msgpack({arr, V}) when is_list(V) ->
 decode_msgpack({obj, V}) when is_map(V) ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
 
-decode_payment_system(PaymentSystemID) when is_binary(PaymentSystemID) ->
-	{ok, #{id => PaymentSystemID}}.
+decode_payment_system(PaymentSystem) when is_binary(PaymentSystem) ->
+	{ok, PaymentSystem}.
 
 decode_payment_system_deprecated(<<"VISA">>) -> {ok, visa};
 decode_payment_system_deprecated(<<"VISA/DANKORT">>) -> {ok, visa};
@@ -157,7 +158,7 @@ decode_payment_system_deprecated(<<"RUPAY">>) -> {ok, rupay};
 decode_payment_system_deprecated(<<"EBT">>) -> {ok, ebt};
 decode_payment_system_deprecated(<<"DUMMY">>) -> {ok, dummy};
 decode_payment_system_deprecated(<<"UZCARD">>) -> {ok, uzcard};
-decode_payment_system_deprecated(UnknonwPaymentSystem) -> {error, {unknown_payment_system, UnknownPaymentSystem}}.
+decode_payment_system_deprecated(UnknownPaymentSystem) -> {error, {unknown_payment_system, UnknownPaymentSystem}}.
 
 decode_card_type(undefined) ->
     undefined;

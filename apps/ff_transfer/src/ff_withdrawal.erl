@@ -426,12 +426,13 @@ create(Params) ->
             wallet_id => WalletID,
             party_id => PartyID,
             destination => Destination,
-            resource => Resource
+            resource => Resource0
         }),
+		Varset = build_party_varset(VarsetParams),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
             ContractID,
-            build_party_varset(VarsetParams),
+            Varset,
             Timestamp,
             PartyRevision,
             DomainRevision
@@ -1112,8 +1113,8 @@ construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
         token = maps:get(token, ResourceBankCard),
         bin = maps:get(bin, ResourceBankCard),
         last_digits = maps:get(masked_pan, ResourceBankCard),
-        payment_system = maps:get(payment_system, ResourceBankCard),
-        payment_system_deprecated = maps:get(payment_system_deprecated, ResourceBankCard),
+        payment_system = maps:get(payment_system, ResourceBankCard, undefined),
+        payment_system_deprecated = maps:get(payment_system_deprecated, ResourceBankCard, undefined),
         issuer_country = maps:get(iso_country_code, ResourceBankCard, undefined),
         bank_name = maps:get(bank_name, ResourceBankCard, undefined)
     }};

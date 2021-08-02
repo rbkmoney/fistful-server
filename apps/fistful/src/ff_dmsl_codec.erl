@@ -134,7 +134,8 @@ unmarshal(
         payment_tool =
             {bank_card, #domain_BankCard{
                 token = Token,
-                payment_system_deprecated = PaymentSystem,
+				payment_system = PaymentSystem,
+                payment_system_deprecated = PaymentSystemDeprecated,
                 bin = Bin,
                 last_digits = LastDigits,
                 exp_date = ExpDate,
@@ -155,6 +156,7 @@ unmarshal(
             bank_card => #{
                 token => Token,
                 payment_system => PaymentSystem,
+                payment_system_deprecated => PaymentSystemDeprecated,
                 bin => Bin,
                 masked_pan => LastDigits,
                 exp_date => maybe_unmarshal(exp_date, ExpDate),

@@ -5,7 +5,8 @@
 -opaque bank_card() :: #{
     token := token(),
     bin => bin(),
-    payment_system := payment_system(),
+    payment_system => payment_system(),
+    payment_system_deprecated => payment_system_deprecated(),
     masked_pan => masked_pan(),
     bank_name => bank_name(),
     iso_country_code => iso_country_code(),
@@ -116,6 +117,7 @@
 -export_type([token/0]).
 -export_type([bin/0]).
 -export_type([payment_system/0]).
+-export_type([payment_system_deprecated/0]).
 -export_type([masked_pan/0]).
 -export_type([bank_name/0]).
 -export_type([iso_country_code/0]).
@@ -129,6 +131,7 @@
 -export([token/1]).
 -export([masked_pan/1]).
 -export([payment_system/1]).
+-export([payment_system_deprecated/1]).
 -export([country_code/1]).
 -export([category/1]).
 -export([bank_name/1]).
@@ -157,8 +160,12 @@ masked_pan(BankCard) ->
     maps:get(masked_pan, BankCard, undefined).
 
 -spec payment_system(bank_card()) -> payment_system().
-payment_system(#{payment_system := PaymentSystem}) ->
-    PaymentSystem.
+payment_system(BankCard) ->
+	maps:get(payment_system, BankCard, undefined).
+
+-spec payment_system_deprecated(bank_card()) -> payment_system_deprecated().
+payment_system_deprecated(BankCard) ->
+    maps:get(payment_system_deprecated, BankCard, undefined).
 
 -spec country_code(bank_card()) -> iso_country_code().
 country_code(BankCard) ->

@@ -19,7 +19,8 @@
     payout_method => dmsl_domain_thrift:'PayoutMethodRef'(),
     wallet_id => dmsl_domain_thrift:'WalletID'(),
     identification_level => dmsl_domain_thrift:'ContractorIdentificationLevel'(),
-    p2p_tool => dmsl_domain_thrift:'P2PTool'()
+    p2p_tool => dmsl_domain_thrift:'P2PTool'(),
+	bin_data => dmsl_domain_thrift:'BinData'()
 }.
 
 -type encoded_varset() :: dmsl_payment_processing_thrift:'Varset'().

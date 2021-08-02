@@ -98,6 +98,7 @@
 -type token() :: binary().
 -type bin() :: binary().
 -type payment_system() :: ff_bin_data:payment_system().
+-type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
 -type bank_name() :: binary().
 -type iso_country_code() :: ff_bin_data:iso_country_code().
@@ -197,7 +198,7 @@ create_resource(Resource) ->
 create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, ResourceID) ->
     do(fun() ->
         BinData = unwrap(bin_data, get_bin_data(Token, ResourceID)),
-        KeyList = [payment_system, bank_name, iso_country_code, card_type, category],
+        KeyList = [payment_system, payment_system_deprecated, bank_name, iso_country_code, card_type, category],
         ExtendData = maps:with(KeyList, BinData),
         {bank_card,
             genlib_map:compact(#{

@@ -5,11 +5,15 @@
 
 -type token() :: binary().
 -type iso_country_code() :: atom().
--type payment_system() :: atom().
+-type payment_system() :: #{
+	id := binary()
+}.
+-type payment_system_deprecated() :: atom().
 -type bin_data() :: #{
     token := token(),
     id := bin_data_id(),
-    payment_system := payment_system(),
+	payment_system := payment_system(),
+    payment_system_deprecated := payment_system_deprecated(),
     bank_name => binary(),
     iso_country_code => iso_country_code(),
     card_type => charge_card | credit | debit | credit_or_debit,
@@ -93,7 +97,8 @@ encode_msgpack(V) when is_map(V) ->
 
 decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Version}) ->
     #'binbase_BinData'{
-        payment_system = PaymentSystem,
+		payment_system = PaymentSystem,
+        payment_system_depecated = PaymentSystemDeprecated,
         bank_name = BankName,
         iso_country_code = IsoCountryCode,
         card_type = CardType,
@@ -104,7 +109,8 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
         genlib_map:compact(#{
             token => Token,
             id => decode_msgpack(BinDataID),
-            payment_system => unwrap(decode_payment_system(PaymentSystem)),
+			payment_system => unwrap(decode_payment_system(PaymentSystem),
+            payment_system_deprecated => unwrap(decode_payment_system_deprecated(PaymentSystemDeprecated)),
             bank_name => BankName,
             iso_country_code => unwrap(decode_residence(IsoCountryCode)),
             card_type => decode_card_type(CardType),
@@ -131,24 +137,27 @@ decode_msgpack({arr, V}) when is_list(V) ->
 decode_msgpack({obj, V}) when is_map(V) ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
 
-decode_payment_system(<<"VISA">>) -> {ok, visa};
-decode_payment_system(<<"VISA/DANKORT">>) -> {ok, visa};
-decode_payment_system(<<"MASTERCARD">>) -> {ok, mastercard};
-decode_payment_system(<<"MAESTRO">>) -> {ok, maestro};
-decode_payment_system(<<"DANKORT">>) -> {ok, dankort};
-decode_payment_system(<<"AMERICAN EXPRESS">>) -> {ok, amex};
-decode_payment_system(<<"DINERS CLUB INTERNATIONAL">>) -> {ok, dinersclub};
-decode_payment_system(<<"DISCOVER">>) -> {ok, discover};
-decode_payment_system(<<"UNIONPAY">>) -> {ok, unionpay};
-decode_payment_system(<<"CHINA UNION PAY">>) -> {ok, unionpay};
-decode_payment_system(<<"JCB">>) -> {ok, jcb};
-decode_payment_system(<<"NSPK MIR">>) -> {ok, nspkmir};
-decode_payment_system(<<"ELO">>) -> {ok, elo};
-decode_payment_system(<<"RUPAY">>) -> {ok, rupay};
-decode_payment_system(<<"EBT">>) -> {ok, ebt};
-decode_payment_system(<<"DUMMY">>) -> {ok, dummy};
-decode_payment_system(<<"UZCARD">>) -> {ok, uzcard};
-decode_payment_system(PaymentSystem) -> {error, {unknown_payment_system, PaymentSystem}}.
+decode_payment_system(PaymentSystemID) when is_binary(PaymentSystemID) ->
+	{ok, #{id => PaymentSystemID}}.
+
+decode_payment_system_deprecated(<<"VISA">>) -> {ok, visa};
+decode_payment_system_deprecated(<<"VISA/DANKORT">>) -> {ok, visa};
+decode_payment_system_deprecated(<<"MASTERCARD">>) -> {ok, mastercard};
+decode_payment_system_deprecated(<<"MAESTRO">>) -> {ok, maestro};
+decode_payment_system_deprecated(<<"DANKORT">>) -> {ok, dankort};
+decode_payment_system_deprecated(<<"AMERICAN EXPRESS">>) -> {ok, amex};
+decode_payment_system_deprecated(<<"DINERS CLUB INTERNATIONAL">>) -> {ok, dinersclub};
+decode_payment_system_deprecated(<<"DISCOVER">>) -> {ok, discover};
+decode_payment_system_deprecated(<<"UNIONPAY">>) -> {ok, unionpay};
+decode_payment_system_deprecated(<<"CHINA UNION PAY">>) -> {ok, unionpay};
+decode_payment_system_deprecated(<<"JCB">>) -> {ok, jcb};
+decode_payment_system_deprecated(<<"NSPK MIR">>) -> {ok, nspkmir};
+decode_payment_system_deprecated(<<"ELO">>) -> {ok, elo};
+decode_payment_system_deprecated(<<"RUPAY">>) -> {ok, rupay};
+decode_payment_system_deprecated(<<"EBT">>) -> {ok, ebt};
+decode_payment_system_deprecated(<<"DUMMY">>) -> {ok, dummy};
+decode_payment_system_deprecated(<<"UZCARD">>) -> {ok, uzcard};
+decode_payment_system_deprecated(UnknonwPaymentSystem) -> {error, {unknown_payment_system, UnknownPaymentSystem}}.
 
 decode_card_type(undefined) ->
     undefined;

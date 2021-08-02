@@ -1112,7 +1112,8 @@ construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
         token = maps:get(token, ResourceBankCard),
         bin = maps:get(bin, ResourceBankCard),
         last_digits = maps:get(masked_pan, ResourceBankCard),
-        payment_system_deprecated = maps:get(payment_system, ResourceBankCard),
+        payment_system = maps:get(payment_system, ResourceBankCard),
+        payment_system_deprecated = maps:get(payment_system_deprecated, ResourceBankCard),
         issuer_country = maps:get(iso_country_code, ResourceBankCard, undefined),
         bank_name = maps:get(bank_name, ResourceBankCard, undefined)
     }};

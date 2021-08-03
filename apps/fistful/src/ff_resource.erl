@@ -161,7 +161,7 @@ masked_pan(BankCard) ->
 
 -spec payment_system(bank_card()) -> payment_system().
 payment_system(BankCard) ->
-	maps:get(payment_system, BankCard, undefined).
+    maps:get(payment_system, BankCard, undefined).
 
 -spec payment_system_deprecated(bank_card()) -> payment_system_deprecated().
 payment_system_deprecated(BankCard) ->

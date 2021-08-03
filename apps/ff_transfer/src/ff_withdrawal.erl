@@ -426,9 +426,9 @@ create(Params) ->
             wallet_id => WalletID,
             party_id => PartyID,
             destination => Destination,
-            resource => Resource0
+            resource => Resource
         }),
-		Varset = build_party_varset(VarsetParams),
+        Varset = build_party_varset(VarsetParams),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
             ContractID,

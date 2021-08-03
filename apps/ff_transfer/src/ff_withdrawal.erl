@@ -411,16 +411,20 @@ create(Params) ->
         DomainRevision = ensure_domain_revision_defined(quote_domain_revision(Quote)),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         accessible = unwrap(wallet, ff_wallet:is_accessible(Wallet)),
-        Destination = unwrap(destination, get_destination(DestinationID)),
-        Resource = unwrap(
-            destination_resource,
-            ff_resource:create_resource(ff_destination:resource(Destination), ResourceDescriptor)
-        ),
-
         Identity = get_wallet_identity(Wallet),
-        PartyID = ff_identity:party(get_wallet_identity(Wallet)),
+        PartyID = ff_identity:party(Identity),
         PartyRevision = ensure_party_revision_defined(PartyID, quote_party_revision(Quote)),
         ContractID = ff_identity:contract(Identity),
+        Destination = unwrap(destination, get_destination(DestinationID)),
+		ResourceParams = ff_destination:resource(Destination),		
+		BinData = unwrap(
+			bin_data,
+			ff_resource:get_bin_data(ResourceParams, ResourceDescriptor)
+		),
+        Resource = unwrap(
+            destination_resource,
+            ff_resource:create_resource(ResourceParams, BinData)
+        ),
         VarsetParams = genlib_map:compact(#{
             body => Body,
             wallet_id => WalletID,
@@ -429,6 +433,9 @@ create(Params) ->
             resource => Resource
         }),
         Varset = build_party_varset(VarsetParams),
+		PaymentInstitutionID = unwrap(ff_party:get_identity_payment_institution_id(Identity)),
+		PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID, Varset, DomainRevision)),
+
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
             ContractID,
@@ -462,6 +469,8 @@ create(Params) ->
             {resource_got, Resource}
         ]
     end).
+
+
 
 -spec start_adjustment(adjustment_params(), withdrawal_state()) ->
     {ok, process_result()}

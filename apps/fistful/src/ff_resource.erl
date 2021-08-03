@@ -1,5 +1,6 @@
 -module(ff_resource).
 
+-type bin_data() :: ff_bin_data:bin_data().
 -type bin_data_id() :: ff_bin_data:bin_data_id().
 
 -opaque bank_card() :: #{
@@ -124,8 +125,10 @@
 -export_type([category/0]).
 -export_type([card_type/0]).
 
--export([create_resource/1]).
+-export([get_bin_data/1]).
+-export([get_bin_data/2]).
 -export([create_resource/2]).
+-export([complete_resource/2]).
 -export([bin/1]).
 -export([bin_data_id/1]).
 -export([token/1]).
@@ -193,19 +196,26 @@ resource_descriptor({bank_card, #{bank_card := #{bin_data_id := ID}}}) ->
 resource_descriptor(_) ->
     undefined.
 
--spec create_resource(resource_params()) ->
-    {ok, resource()}
-    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-create_resource(Resource) ->
-    create_resource(Resource, undefined).
 
--spec create_resource(resource_params(), resource_descriptor() | undefined) ->
-    {ok, resource()}
+-spec get_bin_data(resource_params()) ->
+    {ok, bin_data()}
     | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, ResourceID) ->
+get_bin_data(Resource) ->
+    get_bin_data(Resource, undefined).
+
+-spec get_bin_data(resource_params(), resource_descriptor() | undefined) ->
+    {ok, bin_data()}
+    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
+get_bin_data({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, ResourceID) ->
     do(fun() ->
-        BinData = unwrap(bin_data, get_bin_data(Token, ResourceID)),
-        KeyList = [payment_system, payment_system_deprecated, bank_name, iso_country_code, card_type, category],
+        unwrap(bin_data, ff_bin_data(Token, ResourceID)),
+    end).
+
+-spec create_resource(resource_params(), bin_data()) ->
+    {ok, resource()}.
+create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, BinData) ->
+    do(fun() ->
+        KeyList = [payment_system_deprecated, bank_name, iso_country_code, card_type, category],
         ExtendData = maps:with(KeyList, BinData),
         {bank_card,
             genlib_map:compact(#{
@@ -246,7 +256,8 @@ create_resource(
             }
         }}}.
 
-get_bin_data(Token, undefined) ->
-    ff_bin_data:get(Token, undefined);
-get_bin_data(Token, {bank_card, ResourceID}) ->
-    ff_bin_data:get(Token, ResourceID).
+complete_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}) ->
+
+complete_resource(Resource) ->
+	Resource.
+

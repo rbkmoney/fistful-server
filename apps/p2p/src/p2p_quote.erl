@@ -140,8 +140,10 @@ get(#{
     receiver := Receiver
 }) ->
     do(fun() ->
-        SenderResource = unwrap(sender, ff_resource:create_resource(Sender)),
-        ReceiverResource = unwrap(receiver, ff_resource:create_resource(Receiver)),
+        SenderBinData = unwrap(sender, ff_resource:get_bin_data(Sender)),
+        {ok, SenderResource} = ff_resource:create_resource(Sender, SenderBinData),
+        ReceiverBinData = unwrap(receiver, ff_resource:get_bin_data(Receiver)),
+        {ok, ReceiverResource} = ff_resource:create_resource(Receiver, ReceiverBinData),
         Identity = unwrap(identity, get_identity(IdentityID)),
         {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{

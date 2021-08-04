@@ -1,8 +1,6 @@
 -module(ff_resource).
 
--type varset() :: ff_varset:varset().
--type identity() :: ff_identity:identity_state().
--type domain_revision() :: ff_domain_config:revision().
+-type payment_institution() :: ff_payment_institution:payment_institution().
 
 -type bin_data() :: ff_bin_data:bin_data().
 -type bin_data_id() :: ff_bin_data:bin_data_id().
@@ -103,7 +101,6 @@
 
 -type token() :: binary().
 -type bin() :: binary().
--type payment_system_raw() :: ff_bin_data:payment_system().
 -type payment_system() :: map().
 -type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
@@ -210,22 +207,20 @@ get_bin_data(Resource) ->
 -spec get_bin_data(resource_params(), resource_descriptor() | undefined) ->
     {ok, bin_data()}
     | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-get_bin_data({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, ResourceID) ->
+get_bin_data({bank_card, #{bank_card := #{token := Token}}}, ResourceID) ->
     do(fun() ->
         unwrap(bin_data, ff_bin_data:get(Token, ResourceID))
     end).
 
 -spec create_resource(resource_params(), bin_data()) -> {ok, resource()}.
-create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, BinData) ->
-    do(fun() ->
-        KeyList = [payment_system_deprecated, bank_name, iso_country_code, card_type, category],
-        ExtendData = maps:with(KeyList, BinData),
-        {bank_card,
-            genlib_map:compact(#{
-                bank_card => maps:merge(BankCardParams, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
-                auth_data => maps:get(auth_data, Params, undefined)
-            })}
-    end);
+create_resource({bank_card, #{bank_card := BankCardParams} = Params}, BinData) ->
+    KeyList = [payment_system_deprecated, bank_name, iso_country_code, card_type, category],
+    ExtendData = maps:with(KeyList, BinData),
+    {bank_card,
+        genlib_map:compact(#{
+            bank_card => maps:merge(BankCardParams, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
+            auth_data => maps:get(auth_data, Params, undefined)
+        })};
 create_resource(
     {crypto_wallet, #{
         crypto_wallet := #{
@@ -259,7 +254,7 @@ create_resource(
             }
         }}}.
 
--spec complete_resource(resource(), varset(), identity(), domain_revision()) -> resource().
+-spec complete_resource(resource(), payment_institution()) -> resource().
 complete_resource({bank_card, #{bank_card := BankCard} = ResourceBankCard}, PaymentInstitution) ->
     case maps:get(payment_system, PaymentInstitution, undefined) of
         undefined ->
@@ -267,10 +262,9 @@ complete_resource({bank_card, #{bank_card := BankCard} = ResourceBankCard}, Paym
         {value, PaymentSystemRef} ->
             {bank_card, ResourceBankCard#{
                 bank_card => BankCard#{
-                    payment_system => PaymentSystem
+                    payment_system => PaymentSystemRef
                 }
             }}
     end;
-complete_resource(Rssource, _) ->
+complete_resource(Resource, _) ->
     Resource.
-

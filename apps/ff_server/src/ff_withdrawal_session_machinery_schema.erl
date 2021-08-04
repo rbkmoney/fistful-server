@@ -263,19 +263,19 @@ maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Ext
 maybe_migrate(Ev, _Context) ->
     Ev.
 
-try_get_full_resource(Resource, Context) ->
+try_get_full_resource(ResourceParams, Context) ->
     % `bindata_fun` is a helper for test purposes. You shouldn't use in production code.
     case maps:find(bindata_fun, Context) of
         {ok, Fun} ->
-            Fun(Resource);
+            Fun(ResourceParams);
         error ->
-            case ff_resource:create_resource(Resource) of
-                {ok, NewResource} ->
-                    NewResource;
+            case ff_resource:get_bin_data(ResourceParams) of
+                {ok, BinData} ->
+                    ff_resource:create_resource(ResourceParams, BinData);
                 {error, _Reason} ->
                     % it looks like we have met unsupported card
                     % let's construct some dummy resource
-                    {bank_card, Card} = Resource,
+                    {bank_card, Card} = ResourceParams,
                     {bank_card, maps:merge(#{payment_system => visa, bin_data_id => nil}, Card)}
             end
     end.

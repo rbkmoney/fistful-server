@@ -252,6 +252,7 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type session_id() :: id().
 -type destination_resource() :: ff_destination:resource_full().
+-type bin_data() :: ff_bin_data:bin_data().
 -type cash() :: ff_cash:cash().
 -type cash_range() :: ff_range:range(cash()).
 -type failure() :: ff_failure:failure().
@@ -285,7 +286,8 @@
     wallet_id := wallet_id(),
     party_id := party_id(),
     destination => destination(),
-    resource => destination_resource()
+    resource => destination_resource(),
+    bin_data := bin_data()
 }.
 
 -type activity() ::
@@ -416,12 +418,12 @@ create(Params) ->
         PartyRevision = ensure_party_revision_defined(PartyID, quote_party_revision(Quote)),
         ContractID = ff_identity:contract(Identity),
         Destination = unwrap(destination, get_destination(DestinationID)),
-		ResourceParams = ff_destination:resource(Destination),		
-		BinData = unwrap(
-			bin_data,
-			ff_resource:get_bin_data(ResourceParams, ResourceDescriptor)
-		),
-        Resource = unwrap(
+        ResourceParams = ff_destination:resource(Destination),
+        BinData = unwrap(
+            bin_data,
+            ff_resource:get_bin_data(ResourceParams, ResourceDescriptor)
+        ),
+        Resource0 = unwrap(
             destination_resource,
             ff_resource:create_resource(ResourceParams, BinData)
         ),
@@ -430,11 +432,14 @@ create(Params) ->
             wallet_id => WalletID,
             party_id => PartyID,
             destination => Destination,
-            resource => Resource
+            resource => Resource0,
+            bin_data => BinData
         }),
         Varset = build_party_varset(VarsetParams),
-		PaymentInstitutionID = unwrap(ff_party:get_identity_payment_institution_id(Identity)),
-		PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID, Varset, DomainRevision)),
+        {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
+        {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+
+        Resource1 = ff_resource:complete_resource(Resource0, PaymentInstitution),
 
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
@@ -466,11 +471,9 @@ create(Params) ->
                     metadata => maps:get(metadata, Params, undefined)
                 })},
             {status_changed, pending},
-            {resource_got, Resource}
+            {resource_got, Resource1}
         ]
     end).
-
-
 
 -spec start_adjustment(adjustment_params(), withdrawal_state()) ->
     {ok, process_result()}
@@ -1098,6 +1101,7 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
     {_, CurrencyID} = Body,
     Destination = maps:get(destination, Params, undefined),
     Resource = maps:get(resource, Params, undefined),
+    BinData = maps:get(bin_data, Params, undefined),
     PaymentTool =
         case {Destination, Resource} of
             {undefined, _} ->
@@ -1112,7 +1116,8 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
         wallet_id => WalletID,
         payout_method => #domain_PayoutMethodRef{id = wallet_info},
         % TODO it's not fair, because it's PAYOUT not PAYMENT tool.
-        payment_tool => PaymentTool
+        payment_tool => PaymentTool,
+        bin_data => ff_dmsl_codec:marshal(bin_data, BinData)
     }).
 
 -spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->

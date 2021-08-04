@@ -1,5 +1,9 @@
 -module(ff_resource).
 
+-type varset() :: ff_varset:varset().
+-type identity() :: ff_identity:identity_state().
+-type domain_revision() :: ff_domain_config:revision().
+
 -type bin_data() :: ff_bin_data:bin_data().
 -type bin_data_id() :: ff_bin_data:bin_data_id().
 
@@ -99,7 +103,8 @@
 
 -type token() :: binary().
 -type bin() :: binary().
--type payment_system() :: ff_bin_data:payment_system().
+-type payment_system_raw() :: ff_bin_data:payment_system().
+-type payment_system() :: map().
 -type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
 -type bank_name() :: binary().
@@ -196,7 +201,6 @@ resource_descriptor({bank_card, #{bank_card := #{bin_data_id := ID}}}) ->
 resource_descriptor(_) ->
     undefined.
 
-
 -spec get_bin_data(resource_params()) ->
     {ok, bin_data()}
     | {error, {bin_data, ff_bin_data:bin_data_error()}}.
@@ -208,11 +212,10 @@ get_bin_data(Resource) ->
     | {error, {bin_data, ff_bin_data:bin_data_error()}}.
 get_bin_data({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, ResourceID) ->
     do(fun() ->
-        unwrap(bin_data, ff_bin_data(Token, ResourceID)),
+        unwrap(bin_data, ff_bin_data:get(Token, ResourceID))
     end).
 
--spec create_resource(resource_params(), bin_data()) ->
-    {ok, resource()}.
+-spec create_resource(resource_params(), bin_data()) -> {ok, resource()}.
 create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, BinData) ->
     do(fun() ->
         KeyList = [payment_system_deprecated, bank_name, iso_country_code, card_type, category],
@@ -256,8 +259,18 @@ create_resource(
             }
         }}}.
 
-complete_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}) ->
-
-complete_resource(Resource) ->
-	Resource.
+-spec complete_resource(resource(), varset(), identity(), domain_revision()) -> resource().
+complete_resource({bank_card, #{bank_card := BankCard} = ResourceBankCard}, PaymentInstitution) ->
+    case maps:get(payment_system, PaymentInstitution, undefined) of
+        undefined ->
+            {bank_card, ResourceBankCard};
+        {value, PaymentSystemRef} ->
+            {bank_card, ResourceBankCard#{
+                bank_card => BankCard#{
+                    payment_system => PaymentSystem
+                }
+            }}
+    end;
+complete_resource(Rssource, _) ->
+    Resource.
 

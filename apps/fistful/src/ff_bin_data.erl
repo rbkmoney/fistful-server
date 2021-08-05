@@ -96,7 +96,7 @@ encode_msgpack(V) when is_map(V) ->
 
 %%
 
--spec decode_result(token(), response_data()) -> bin_data().
+-spec decode_result(token(), response_data()) -> {ok, bin_data()}.
 decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Version}) ->
     #'binbase_BinData'{
         payment_system = PaymentSystem,

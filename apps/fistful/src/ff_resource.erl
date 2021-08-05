@@ -1,5 +1,7 @@
 -module(ff_resource).
 
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+
 -type payment_institution() :: ff_payment_institution:payment_institution().
 
 -type bin_data() :: ff_bin_data:bin_data().
@@ -101,7 +103,7 @@
 
 -type token() :: binary().
 -type bin() :: binary().
--type payment_system() :: map().
+-type payment_system() :: dmsl_domain_thrift:'PaymentSystemRef'().
 -type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
 -type bank_name() :: binary().

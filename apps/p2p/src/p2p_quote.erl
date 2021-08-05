@@ -121,13 +121,6 @@ sender_descriptor(#{sender := {bank_card, #{bin_data_id := BinDataID}}}) ->
 receiver_descriptor(#{receiver := {bank_card, #{bin_data_id := BinDataID}}}) ->
     {bank_card, BinDataID}.
 
--spec compact(ff_resource:resource()) -> compact_resource().
-compact({bank_card, #{bank_card := BankCard}}) ->
-    {bank_card, #{
-        token => ff_resource:token(BankCard),
-        bin_data_id => ff_resource:bin_data_id(BankCard)
-    }}.
-
 %%
 
 -spec get(params()) ->
@@ -169,8 +162,8 @@ get(#{
             created_at => CreatedAt,
             expires_on => ExpiresOn,
             identity_id => IdentityID,
-            sender => compact(SenderResource),
-            receiver => compact(ReceiverResource)
+            sender => SenderResource,
+            receiver => ReceiverResource
         })
     end).
 

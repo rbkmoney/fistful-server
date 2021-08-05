@@ -330,8 +330,8 @@ destination_resource(Withdrawal) ->
     DestinationID = destination_id(Withdrawal),
     {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
     Destination = ff_destination_machine:destination(DestinationMachine),
-    {ok, ResourceParams} = ff_destination:resource(Destination),
-    BinData = ff_resource:get_bin_data(ResourceParams),
+    ResourceParams = ff_destination:resource(Destination),
+    {ok, BinData} = ff_resource:get_bin_data(ResourceParams),
     {ok, Resource} = ff_resource:create_resource(ResourceParams, BinData),
     Resource.
 

@@ -239,7 +239,7 @@ marshal(bank_card, BankCard) ->
         bin = ff_resource:bin(BankCard),
         last_digits = ff_resource:masked_pan(BankCard),
         payment_system = ff_resource:payment_system(BankCard),
-        payment_system_deprecated = ff_resource:payment_system(BankCard),
+        payment_system_deprecated = ff_resource:payment_system_deprecated(BankCard),
         issuer_country = ff_resource:country_code(BankCard),
         bank_name = ff_resource:bank_name(BankCard),
         exp_date = maybe_marshal(exp_date, ExpDate),

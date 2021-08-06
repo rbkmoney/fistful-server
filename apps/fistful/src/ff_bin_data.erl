@@ -35,7 +35,6 @@
 
 -type bin_data_error() ::
     not_found
-    | {unknown_payment_system, binary()}
     | {unknown_residence, binary()}.
 
 -export_type([bin_data/0]).
@@ -96,7 +95,7 @@ encode_msgpack(V) when is_map(V) ->
 
 %%
 
--spec decode_result(token(), response_data()) -> {ok, bin_data()}.
+-spec decode_result(token(), response_data()) -> {ok, bin_data()} | {error, bin_data_error()}. 
 decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Version}) ->
     #'binbase_BinData'{
         payment_system = PaymentSystem,

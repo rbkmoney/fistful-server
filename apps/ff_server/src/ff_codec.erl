@@ -435,7 +435,7 @@ unmarshal(exp_date, #'BankCardExpDate'{
     {unmarshal(integer, Month), unmarshal(integer, Year)};
 unmarshal(payment_system, #'PaymentSystemRef'{id = Ref}) when is_binary(Ref) ->
     #{
-        id => unmarshal(string, Ref)
+        id => Ref
     };
 unmarshal(payment_system_deprecated, V) when is_atom(V) ->
     V;

@@ -13,7 +13,7 @@
     token := token(),
     id := bin_data_id(),
     payment_system := payment_system(),
-    payment_system_deprecated := payment_system_deprecated(),
+    payment_system_deprecated => payment_system_deprecated(),
     bank_name => binary(),
     iso_country_code => iso_country_code(),
     card_type => charge_card | credit | debit | credit_or_debit,
@@ -111,7 +111,7 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
             token => Token,
             id => decode_msgpack(BinDataID),
             payment_system => unwrap(decode_payment_system(PaymentSystem)),
-            payment_system_deprecated => unwrap(decode_payment_system_deprecated(PaymentSystem)),
+            payment_system_deprecated => decode_payment_system_deprecated(PaymentSystem),
             bank_name => BankName,
             iso_country_code => unwrap(decode_residence(IsoCountryCode)),
             card_type => decode_card_type(CardType),
@@ -141,24 +141,24 @@ decode_msgpack({obj, V}) when is_map(V) ->
 decode_payment_system(PaymentSystem) when is_binary(PaymentSystem) ->
     {ok, PaymentSystem}.
 
-decode_payment_system_deprecated(<<"VISA">>) -> {ok, visa};
-decode_payment_system_deprecated(<<"VISA/DANKORT">>) -> {ok, visa};
-decode_payment_system_deprecated(<<"MASTERCARD">>) -> {ok, mastercard};
-decode_payment_system_deprecated(<<"MAESTRO">>) -> {ok, maestro};
-decode_payment_system_deprecated(<<"DANKORT">>) -> {ok, dankort};
-decode_payment_system_deprecated(<<"AMERICAN EXPRESS">>) -> {ok, amex};
-decode_payment_system_deprecated(<<"DINERS CLUB INTERNATIONAL">>) -> {ok, dinersclub};
-decode_payment_system_deprecated(<<"DISCOVER">>) -> {ok, discover};
-decode_payment_system_deprecated(<<"UNIONPAY">>) -> {ok, unionpay};
-decode_payment_system_deprecated(<<"CHINA UNION PAY">>) -> {ok, unionpay};
-decode_payment_system_deprecated(<<"JCB">>) -> {ok, jcb};
-decode_payment_system_deprecated(<<"NSPK MIR">>) -> {ok, nspkmir};
-decode_payment_system_deprecated(<<"ELO">>) -> {ok, elo};
-decode_payment_system_deprecated(<<"RUPAY">>) -> {ok, rupay};
-decode_payment_system_deprecated(<<"EBT">>) -> {ok, ebt};
-decode_payment_system_deprecated(<<"DUMMY">>) -> {ok, dummy};
-decode_payment_system_deprecated(<<"UZCARD">>) -> {ok, uzcard};
-decode_payment_system_deprecated(UnknownPaymentSystem) -> {error, {unknown_payment_system, UnknownPaymentSystem}}.
+decode_payment_system_deprecated(<<"VISA">>) -> visa;
+decode_payment_system_deprecated(<<"VISA/DANKORT">>) -> visa;
+decode_payment_system_deprecated(<<"MASTERCARD">>) -> mastercard;
+decode_payment_system_deprecated(<<"MAESTRO">>) -> maestro;
+decode_payment_system_deprecated(<<"DANKORT">>) -> dankort;
+decode_payment_system_deprecated(<<"AMERICAN EXPRESS">>) -> amex;
+decode_payment_system_deprecated(<<"DINERS CLUB INTERNATIONAL">>) -> dinersclub;
+decode_payment_system_deprecated(<<"DISCOVER">>) -> discover;
+decode_payment_system_deprecated(<<"UNIONPAY">>) -> unionpay;
+decode_payment_system_deprecated(<<"CHINA UNION PAY">>) -> unionpay;
+decode_payment_system_deprecated(<<"JCB">>) -> jcb;
+decode_payment_system_deprecated(<<"NSPK MIR">>) -> nspkmir;
+decode_payment_system_deprecated(<<"ELO">>) -> elo;
+decode_payment_system_deprecated(<<"RUPAY">>) -> rupay;
+decode_payment_system_deprecated(<<"EBT">>) -> ebt;
+decode_payment_system_deprecated(<<"DUMMY">>) -> dummy;
+decode_payment_system_deprecated(<<"UZCARD">>) -> uzcard;
+decode_payment_system_deprecated(_) -> undefined.
 
 decode_card_type(undefined) ->
     undefined;

@@ -437,16 +437,16 @@ create(Params) ->
             resource => Resource0,
             bin_data => BinData
         }),
-        Varset = build_party_varset(VarsetParams),
+        Varset0 = build_party_varset(VarsetParams),
         {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-        {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, Varset, DomainRevision),
+        {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, Varset0, DomainRevision),
 
         Resource1 = ff_resource:complete_resource(Resource0, PaymentInstitution),
-
+        Varset1 = build_party_varset(VarsetParams#{resource => Resource1}),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
             ContractID,
-            Varset,
+            Varset1,
             Timestamp,
             PartyRevision,
             DomainRevision

@@ -121,6 +121,13 @@ sender_descriptor(#{sender := {bank_card, #{bin_data_id := BinDataID}}}) ->
 receiver_descriptor(#{receiver := {bank_card, #{bin_data_id := BinDataID}}}) ->
     {bank_card, BinDataID}.
 
+-spec compact(ff_resource:resource()) -> compact_resource().
+compact({bank_card, #{bank_card := BankCard}}) ->
+    {bank_card, #{
+        token => ff_resource:token(BankCard),
+        bin_data_id => ff_resource:bin_data_id(BankCard)
+    }}.
+
 %%
 
 -spec get(params()) ->
@@ -133,10 +140,8 @@ get(#{
     receiver := Receiver
 }) ->
     do(fun() ->
-        SenderBinData = unwrap(sender, ff_resource:get_bin_data(Sender)),
-        {ok, SenderResource} = ff_resource:create_resource(Sender, SenderBinData),
-        ReceiverBinData = unwrap(receiver, ff_resource:get_bin_data(Receiver)),
-        {ok, ReceiverResource} = ff_resource:create_resource(Receiver, ReceiverBinData),
+        SenderResource = unwrap(sender, ff_resource:create_resource(Sender)),
+        ReceiverResource = unwrap(receiver, ff_resource:create_resource(Receiver)),
         Identity = unwrap(identity, get_identity(IdentityID)),
         {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{
@@ -162,8 +167,8 @@ get(#{
             created_at => CreatedAt,
             expires_on => ExpiresOn,
             identity_id => IdentityID,
-            sender => SenderResource,
-            receiver => ReceiverResource
+            sender => compact(SenderResource),
+            receiver => compact(ReceiverResource)
         })
     end).
 

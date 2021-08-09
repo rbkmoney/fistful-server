@@ -2,8 +2,6 @@
 
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 
--type payment_institution() :: ff_payment_institution:payment_institution().
-
 -type bin_data() :: ff_bin_data:bin_data().
 -type bin_data_id() :: ff_bin_data:bin_data_id().
 
@@ -103,6 +101,7 @@
 
 -type token() :: binary().
 -type bin() :: binary().
+-type payment_system_selector() :: dmsl_domain_thrift:'PaymentSystemSelector'().
 -type payment_system() :: dmsl_domain_thrift:'PaymentSystemRef'().
 -type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
@@ -129,8 +128,8 @@
 -export_type([category/0]).
 -export_type([card_type/0]).
 
--export([get_bin_data/1]).
 -export([get_bin_data/2]).
+-export([create_resource/1]).
 -export([create_resource/2]).
 -export([complete_resource/2]).
 -export([bin/1]).
@@ -200,18 +199,24 @@ resource_descriptor({bank_card, #{bank_card := #{bin_data_id := ID}}}) ->
 resource_descriptor(_) ->
     undefined.
 
--spec get_bin_data(resource_params()) ->
-    {ok, bin_data()}
-    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-get_bin_data(Resource) ->
-    get_bin_data(Resource, undefined).
-
 -spec get_bin_data(resource_params(), resource_descriptor() | undefined) ->
     {ok, bin_data()}
+    | {error, ff_bin_data:bin_data_error()}.
+get_bin_data({bank_card, #{bank_card := #{token := Token}}}, ResourceDescriptor) ->
+    get_bin_data_(Token, ResourceDescriptor).
+
+get_bin_data_(Token, undefined) ->
+    ff_bin_data:get(Token, undefined);
+get_bin_data_(Token, {bank_card, ResourceID}) ->
+    ff_bin_data:get(Token, ResourceID).
+
+-spec create_resource(resource_params()) ->
+    {ok, resource()}
     | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-get_bin_data({bank_card, #{bank_card := #{token := Token}}}, ResourceID) ->
+create_resource(ResourceParams) ->
     do(fun() ->
-        unwrap(bin_data, ff_bin_data:get(Token, ResourceID))
+        BinData = unwrap(bin_data, get_bin_data(ResourceParams, undefined)),
+        create_resource(ResourceParams, BinData)
     end).
 
 -spec create_resource(resource_params(), bin_data()) -> {ok, resource()}.
@@ -230,7 +235,7 @@ create_resource(
             currency := Currency
         }
     }},
-    _ResourceID
+    _ResourceDescriptor
 ) ->
     {ok,
         {crypto_wallet, #{
@@ -246,7 +251,7 @@ create_resource(
             data := Data
         }
     }},
-    _ResourceID
+    _ResourceDescriptor
 ) ->
     {ok,
         {digital_wallet, #{
@@ -256,17 +261,14 @@ create_resource(
             }
         }}}.
 
--spec complete_resource(resource(), payment_institution()) -> resource().
-complete_resource({bank_card, #{bank_card := BankCard} = ResourceBankCard}, PaymentInstitution) ->
-    case maps:get(payment_system, PaymentInstitution, undefined) of
-        undefined ->
-            {bank_card, ResourceBankCard};
-        {value, PaymentSystemRef} ->
-            {bank_card, ResourceBankCard#{
-                bank_card => BankCard#{
-                    payment_system => PaymentSystemRef
-                }
-            }}
-    end;
+-spec complete_resource(resource(), payment_system_selector()) -> resource().
+complete_resource({bank_card, ResourceBankCard}, undefined) ->
+    {bank_card, ResourceBankCard};
+complete_resource({bank_card, #{bank_card := BankCard} = ResourceBankCard}, {value, PaymentSystemRef}) ->
+    {bank_card, ResourceBankCard#{
+        bank_card => BankCard#{
+            payment_system => PaymentSystemRef
+        }
+    }};
 complete_resource(Resource, _) ->
     Resource.

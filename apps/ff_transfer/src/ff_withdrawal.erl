@@ -330,9 +330,7 @@ destination_resource(Withdrawal) ->
     DestinationID = destination_id(Withdrawal),
     {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
     Destination = ff_destination_machine:destination(DestinationMachine),
-    ResourceParams = ff_destination:resource(Destination),
-    {ok, BinData} = ff_resource:get_bin_data(ResourceParams),
-    {ok, Resource} = ff_resource:create_resource(ResourceParams, BinData),
+    {ok, Resource} = ff_resource:create_resource(ff_destination:resource(Destination)),
     Resource.
 
 %%
@@ -425,10 +423,7 @@ create(Params) ->
             bin_data,
             ff_resource:get_bin_data(ResourceParams, ResourceDescriptor)
         ),
-        Resource0 = unwrap(
-            destination_resource,
-            ff_resource:create_resource(ResourceParams, BinData)
-        ),
+        {ok, Resource0} = ff_resource:create_resource(ResourceParams, BinData),
         VarsetParams = genlib_map:compact(#{
             body => Body,
             wallet_id => WalletID,
@@ -438,10 +433,9 @@ create(Params) ->
             bin_data => BinData
         }),
         Varset0 = build_party_varset(VarsetParams),
-        {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-        {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, Varset0, DomainRevision),
-
-        Resource1 = ff_resource:complete_resource(Resource0, PaymentInstitution),
+        {ok, PaymentInstitution} = get_payment_institution(Identity, Varset0, DomainRevision),
+        PaymentSystemSelector = maps:get(payment_system, PaymentInstitution, undefined),
+        Resource1 = ff_resource:complete_resource(Resource0, PaymentSystemSelector),
         Varset1 = build_party_varset(VarsetParams#{resource => Resource1}),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
@@ -994,8 +988,7 @@ make_final_cash_flow(Withdrawal) ->
     ProviderAccounts = ff_payouts_provider:accounts(Provider),
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
-    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+    {ok, PaymentInstitution} = get_payment_institution(Identity, PartyVarset, DomainRevision),
     {ok, SystemAccounts} = ff_payment_institution:system_accounts(PaymentInstitution, DomainRevision),
     SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
@@ -1098,6 +1091,10 @@ get_identity(IdentityID) ->
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     ff_identity_machine:identity(IdentityMachine).
 
+get_payment_institution(Identity, PartyVarset, DomainRevision) ->
+    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
+    ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision).
+
 -spec build_party_varset(party_varset_params()) -> party_varset().
 build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} = Params) ->
     {_, CurrencyID} = Body,
@@ -1145,9 +1142,7 @@ construct_payment_tool({digital_wallet, #{digital_wallet := #{id := ID, data := 
 get_quote(Params = #{destination_id := DestinationID, body := Body, wallet_id := WalletID}) ->
     do(fun() ->
         Destination = unwrap(destination, get_destination(DestinationID)),
-        ResourceParams = ff_destination:resource(Destination),
-        BinData = unwrap(ff_resource:get_bin_data(ResourceParams)),
-        Resource = ff_resource:create_resource(ResourceParams, BinData),
+        Resource = unwrap(destination_resource, ff_resource:create_resource(ff_destination:resource(Destination))),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         Identity = get_wallet_identity(Wallet),
         ContractID = ff_identity:contract(Identity),

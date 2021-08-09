@@ -269,14 +269,14 @@ try_get_full_resource(ResourceParams, Context) ->
         {ok, Fun} ->
             Fun(ResourceParams);
         error ->
-            case ff_resource:get_bin_data(ResourceParams) of
-                {ok, BinData} ->
-                    ff_resource:create_resource(ResourceParams, BinData);
+            case ff_resource:create_resource(ResourceParams) of
+                {ok, NewResource} ->
+                    NewResource;
                 {error, _Reason} ->
                     % it looks like we have met unsupported card
                     % let's construct some dummy resource
                     {bank_card, Card} = ResourceParams,
-                    {bank_card, maps:merge(#{payment_system => visa, bin_data_id => nil}, Card)}
+                    {bank_card, maps:merge(#{payment_system_deprecated => visa, bin_data_id => nil}, Card)}
             end
     end.
 

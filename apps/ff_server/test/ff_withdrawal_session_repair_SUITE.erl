@@ -175,9 +175,7 @@ create_failed_session(IdentityID, DestinationID, _C) ->
     },
     {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
     Destination = ff_destination_machine:destination(DestinationMachine),
-    ResourceParams = ff_destination:resource(Destination),
-    {ok, BinData} = ff_resource:get_bin_data(ResourceParams),
-    {ok, DestinationResource} = ff_resource:create_resource(ResourceParams, BinData),
+    {ok, DestinationResource} = ff_resource:create_resource(ff_destination:resource(Destination)),
     SessionParams = #{
         withdrawal_id => ID,
         resource => DestinationResource,

@@ -54,7 +54,7 @@ get_resource(Participant) ->
 -spec get_resource(participant(), resource_descriptor() | undefined) ->
     {ok, resource()}
     | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-get_resource({raw, #{resource_params := ResourceParams}}, ResourceID) ->
+get_resource({raw, #{resource_params := ResourceParams}}, ResourceDescriptor) ->
     do(fun() ->
-        unwrap(ff_resource:create_resource(ResourceParams, ResourceID))
+        unwrap(ff_resource:create_resource(ResourceParams, ResourceDescriptor))
     end).

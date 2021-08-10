@@ -180,7 +180,7 @@ created_v0_1_decoding_test() ->
                     exp_date => {10, 2022},
                     iso_country_code => bra,
                     masked_pan => <<"4444">>,
-                    payment_system => mastercard,
+                    payment_system_deprecated => mastercard,
                     token => <<"token">>
                 }
             }},
@@ -194,7 +194,7 @@ created_v0_1_decoding_test() ->
                     exp_date => {10, 2022},
                     iso_country_code => gbr,
                     masked_pan => <<"4242">>,
-                    payment_system => visa,
+                    payment_system_deprecated => visa,
                     token => <<"token">>
                 }
             }},
@@ -302,7 +302,7 @@ created_v0_1_decoding_test() ->
                                                         ]},
                                                     {str, <<"iso_country_code">>} => {str, <<"gbr">>},
                                                     {str, <<"masked_pan">>} => {bin, <<"4242">>},
-                                                    {str, <<"payment_system">>} => {str, <<"visa">>},
+                                                    {str, <<"payment_system_deprecated">>} => {str, <<"visa">>},
                                                     {str, <<"token">>} => {bin, <<"token">>}
                                                 }}
                                             ]}
@@ -326,7 +326,7 @@ created_v0_1_decoding_test() ->
                                                         ]},
                                                     {str, <<"iso_country_code">>} => {str, <<"bra">>},
                                                     {str, <<"masked_pan">>} => {bin, <<"4444">>},
-                                                    {str, <<"payment_system">>} => {str, <<"mastercard">>},
+                                                    {str, <<"payment_system_deprecated">>} => {str, <<"mastercard">>},
                                                     {str, <<"token">>} => {bin, <<"token">>}
                                                 }}
                                             ]}

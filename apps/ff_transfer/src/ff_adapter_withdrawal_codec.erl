@@ -77,6 +77,10 @@ marshal(exp_date, {Month, Year}) ->
         month = Month,
         year = Year
     };
+marshal(payment_system, #{id := Ref}) when is_binary(Ref) ->
+    #domain_PaymentSystemRef{
+        id = Ref
+    };
 marshal(identity, Identity) ->
     % TODO: Add real contact fields
     #wthdm_Identity{
@@ -161,17 +165,19 @@ marshal(
     {bank_card, #{
         bank_card := #{
             token := Token,
-            payment_system := PaymentSystem,
+            payment_system_deprecated := PaymentSystemDeprecated,
             bin := BIN,
             masked_pan := LastDigits
         } = BankCard
     }}
 ) ->
-    CardHolderName = genlib_map:get(cardholder_name, BankCard),
-    ExpDate = genlib_map:get(exp_date, BankCard),
+    CardHolderName = maps:get(cardholder_name, BankCard, undefined),
+    ExpDate = maps:get(exp_date, BankCard, undefined),
+    PaymentSystem = maps:get(payment_system, BankCard, undefined),
     {bank_card, #domain_BankCard{
         token = Token,
-        payment_system_deprecated = PaymentSystem,
+        payment_system = maybe_marshal(PaymentSystem),
+        payment_system_deprecated = PaymentSystemDeprecated,
         bin = BIN,
         last_digits = LastDigits,
         cardholder_name = CardHolderName,
@@ -295,7 +301,7 @@ unmarshal(exp_date, #domain_BankCardExpDate{
     year = Year
 }) ->
     {Month, Year};
-unmarshal(identity, _NotImplemented) ->
+nmarshal(identity, _NotImplemented) ->
     %@TODO
     erlang:error(not_implemented);
 unmarshal(identity_documents, _NotImplemented) ->

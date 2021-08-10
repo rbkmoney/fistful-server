@@ -96,7 +96,7 @@ construct_resource() ->
         bank_card => #{
             token => <<"token">>,
             bin => <<"bin">>,
-            payment_system => visa,
+            payment_system_deprecated => visa,
             masked_pan => <<"masked_pan">>,
             exp_date => {2, 2024},
             cardholder_name => <<"name">>

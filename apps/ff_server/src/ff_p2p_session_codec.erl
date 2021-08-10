@@ -377,7 +377,7 @@ p2p_session_codec_test() ->
         {bank_card, #{
             bank_card => #{
                 token => <<"token">>,
-                payment_system => visa
+                payment_system_deprecated => visa
             }
         }},
 

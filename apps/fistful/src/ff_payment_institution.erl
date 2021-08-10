@@ -78,7 +78,6 @@ get_selector_value(Name, Selector) ->
             {error, {misconfiguration, {'Could not reduce selector to a value', {Name, Ambiguous}}}}
     end.
 
-%-type payment_system_selector() :: dmsl_domain_thrift:'PaymentSystemSelector'().
 -spec payment_system(payment_institution()) ->
     {ok, ff_resource:payment_system()}
     | {error, term()}.

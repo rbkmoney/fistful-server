@@ -155,7 +155,7 @@ unmarshal(
         genlib_map:compact(#{
             bank_card => #{
                 token => Token,
-                payment_system => PaymentSystem,
+                payment_system => maybe_unmarshal(payment_system, PaymentSystem),
                 payment_system_deprecated => PaymentSystemDeprecated,
                 bin => Bin,
                 masked_pan => LastDigits,
@@ -169,6 +169,12 @@ unmarshal(exp_date, #'domain_BankCardExpDate'{
     year = Year
 }) ->
     {unmarshal(integer, Month), unmarshal(integer, Year)};
+unmarshal(payment_system, #'domain_PaymentSystemRef'{
+    id = ID
+}) ->
+    #{
+        id => unmarshal(string, ID)
+    };
 unmarshal(attempt_limit, #domain_AttemptLimit{
     attempts = Attempts
 }) ->
@@ -228,17 +234,19 @@ marshal(disposable_payment_resource, {Resource, ClientInfo}) ->
 marshal(payment_tool, {bank_card, #{bank_card := BankCard}}) ->
     {bank_card, marshal(bank_card, BankCard)};
 marshal(bin_data, #{payment_system := PaymentSystem} = BinData) ->
+    BankName = maps:get(bank_name, BinData, undefined),
     #domain_BinData{
-        payment_system = PaymentSystem,
-        bank_name = maps:get(bank_name, BinData, undefined)
+        payment_system = marshal(string, PaymentSystem),
+        bank_name = maybe_marshal(string, BankName)
     };
 marshal(bank_card, BankCard) ->
     ExpDate = ff_resource:exp_date(BankCard),
+    PaymentSystem = ff_resource:payment_system(BankCard),
     #domain_BankCard{
         token = ff_resource:token(BankCard),
         bin = ff_resource:bin(BankCard),
         last_digits = ff_resource:masked_pan(BankCard),
-        payment_system = ff_resource:payment_system(BankCard),
+        payment_system = maybe_marshal(payment_system, PaymentSystem),
         payment_system_deprecated = ff_resource:payment_system_deprecated(BankCard),
         issuer_country = ff_resource:country_code(BankCard),
         bank_name = ff_resource:bank_name(BankCard),
@@ -250,6 +258,10 @@ marshal(exp_date, {Month, Year}) ->
     #domain_BankCardExpDate{
         month = marshal(integer, Month),
         year = marshal(integer, Year)
+    };
+marshal(payment_system, #{id := ID}) ->
+    #domain_PaymentSystemRef{
+        id = marshal(string, ID)
     };
 marshal(contact_info, undefined) ->
     #domain_ContactInfo{};

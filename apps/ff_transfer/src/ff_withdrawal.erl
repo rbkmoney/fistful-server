@@ -434,8 +434,8 @@ create(Params) ->
         }),
         Varset0 = build_party_varset(VarsetParams),
         {ok, PaymentInstitution} = get_payment_institution(Identity, Varset0, DomainRevision),
-        PaymentSystemSelector = maps:get(payment_system, PaymentInstitution, undefined),
-        Resource1 = ff_resource:complete_resource(Resource0, PaymentSystemSelector),
+        PaymentSystem = unwrap(ff_payment_institution:payment_system(PaymentInstitution)),
+        Resource1 = ff_resource:complete_resource(Resource0, PaymentSystem),
         Varset1 = build_party_varset(VarsetParams#{resource => Resource1}),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
@@ -1091,6 +1091,8 @@ get_identity(IdentityID) ->
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     ff_identity_machine:identity(IdentityMachine).
 
+-spec get_payment_institution(identity(), party_varset(), domain_revision()) ->
+    {ok, ff_payment_institution:payment_institution()}.
 get_payment_institution(Identity, PartyVarset, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision).

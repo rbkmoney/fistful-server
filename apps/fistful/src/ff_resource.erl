@@ -1,6 +1,6 @@
 -module(ff_resource).
 
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -type bin_data() :: ff_bin_data:bin_data().
 -type bin_data_id() :: ff_bin_data:bin_data_id().
@@ -101,8 +101,9 @@
 
 -type token() :: binary().
 -type bin() :: binary().
--type payment_system_selector() :: dmsl_domain_thrift:'PaymentSystemSelector'().
--type payment_system() :: dmsl_domain_thrift:'PaymentSystemRef'().
+-type payment_system() :: #{
+    id := binary()
+}.
 -type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
 -type bank_name() :: binary().
@@ -261,13 +262,13 @@ create_resource(
             }
         }}}.
 
--spec complete_resource(resource(), payment_system_selector()) -> resource().
+-spec complete_resource(resource(), payment_system()) -> resource().
 complete_resource({bank_card, ResourceBankCard}, undefined) ->
     {bank_card, ResourceBankCard};
-complete_resource({bank_card, #{bank_card := BankCard} = ResourceBankCard}, {value, PaymentSystemRef}) ->
+complete_resource({bank_card, #{bank_card := BankCard} = ResourceBankCard}, PaymentSystem) ->
     {bank_card, ResourceBankCard#{
         bank_card => BankCard#{
-            payment_system => PaymentSystemRef
+            payment_system => PaymentSystem
         }
     }};
 complete_resource(Resource, _) ->

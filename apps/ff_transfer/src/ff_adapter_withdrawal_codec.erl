@@ -176,7 +176,7 @@ marshal(
     PaymentSystem = maps:get(payment_system, BankCard, undefined),
     {bank_card, #domain_BankCard{
         token = Token,
-        payment_system = maybe_marshal(PaymentSystem),
+        payment_system = maybe_marshal(payment_system, PaymentSystem),
         payment_system_deprecated = PaymentSystemDeprecated,
         bin = BIN,
         last_digits = LastDigits,
@@ -301,7 +301,7 @@ unmarshal(exp_date, #domain_BankCardExpDate{
     year = Year
 }) ->
     {Month, Year};
-nmarshal(identity, _NotImplemented) ->
+unmarshal(identity, _NotImplemented) ->
     %@TODO
     erlang:error(not_implemented);
 unmarshal(identity_documents, _NotImplemented) ->

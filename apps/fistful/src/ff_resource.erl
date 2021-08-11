@@ -271,5 +271,7 @@ complete_resource({bank_card, #{bank_card := BankCard} = ResourceBankCard}, Paym
             payment_system => PaymentSystem
         }
     }};
-complete_resource(Resource, _) ->
+complete_resource({crypto_wallet, _} = Resource, _) ->
+    Resource;
+complete_resource({digital_wallet, _} = Resource, _) ->
     Resource.

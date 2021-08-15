@@ -4,6 +4,7 @@
 
 -type bin_data() :: ff_bin_data:bin_data().
 -type bin_data_id() :: ff_bin_data:bin_data_id().
+-type bin_data_error() :: ff_bin_data:bin_data_error().
 
 -opaque bank_card() :: #{
     token := token(),
@@ -53,6 +54,7 @@
     currency := crypto_currency()
 }.
 
+-type bank_card_creation_data() :: {resource_descriptor, resource_descriptor() | undefined} | {bin_data, bin_data()}.
 -type resource_descriptor() :: {bank_card, bin_data_id()}.
 -type resource_type() :: bank_card | crypto_wallet | digital_wallet.
 -type resource_params() ::
@@ -62,7 +64,8 @@
 
 -type resource() ::
     {bank_card, resource_bank_card()}
-    | {crypto_wallet, resource_crypto_wallet()}.
+    | {crypto_wallet, resource_crypto_wallet()}
+    | {digital_wallet, resource_digital_wallet()}.
 
 -type resource_bank_card() :: #{
     bank_card := bank_card(),
@@ -132,6 +135,7 @@
 -export([get_bin_data/2]).
 -export([create_resource/1]).
 -export([create_resource/2]).
+-export([create_bank_card/2]).
 -export([complete_resource/2]).
 -export([bin/1]).
 -export([bin_data_id/1]).
@@ -148,7 +152,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 -spec token(bank_card()) -> token().
 token(#{token := Token}) ->
@@ -202,7 +206,7 @@ resource_descriptor(_) ->
 
 -spec get_bin_data(resource_params(), resource_descriptor() | undefined) ->
     {ok, bin_data()}
-    | {error, ff_bin_data:bin_data_error()}.
+    | {error, bin_data_error()}.
 get_bin_data({bank_card, #{bank_card := #{token := Token}}}, ResourceDescriptor) ->
     get_bin_data_(Token, ResourceDescriptor).
 
@@ -213,47 +217,64 @@ get_bin_data_(Token, {bank_card, ResourceID}) ->
 
 -spec create_resource(resource_params()) ->
     {ok, resource()}
-    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-create_resource(ResourceParams) ->
-    do(fun() ->
-        BinData = unwrap(bin_data, get_bin_data(ResourceParams, undefined)),
-        create_resource(ResourceParams, BinData)
-    end).
+    | {error, {bin_data, bin_data_error()}}.
+create_resource({bank_card, BankCardParams}) ->
+    create_bank_card(BankCardParams, {resource_descriptor, undefined});
+create_resource({crypto_wallet, CryptoWalletParams}) ->
+    create_crypto_wallet(CryptoWalletParams);
+create_resource({digital_wallet, DigitalWalletParams}) ->
+    create_digital_wallet(DigitalWalletParams).
 
--spec create_resource(resource_params(), bin_data()) -> {ok, resource()}.
-create_resource({bank_card, #{bank_card := BankCardParams} = Params}, BinData) ->
+-spec create_resource(resource_params(), resource_descriptor() | undefined) ->
+    {ok, resource()}
+    | {error, {bin_data, bin_data_error()}}.
+create_resource({bank_card, BankCardParams}, ResourceDescriptor) ->
+    create_bank_card(BankCardParams, {resource_descriptor, ResourceDescriptor});
+create_resource({crypto_wallet, CryptoWalletParams}, _ResourceDescriptor) ->
+    create_crypto_wallet(CryptoWalletParams);
+create_resource({digital_wallet, DigitalWalletParams}, _ResourceDescriptor) ->
+    create_digital_wallet(DigitalWalletParams).
+
+-spec create_bank_card(resource_bank_card_params(), bank_card_creation_data()) ->
+    {ok, resource()}
+    | {error, {bin_data, bin_data_error()}}.
+create_bank_card(#{bank_card := #{token := Token}} = BankCardParams, {resource_descriptor, ResourceDescriptor}) ->
+    do(fun() ->
+        BinData = unwrap(bin_data, get_bin_data(Token, ResourceDescriptor)),
+        unwrap(create_bank_card(BankCardParams, {bin_data, BinData}))
+    end);
+create_bank_card(BankCardParams, {bin_data, BinData}) ->
     KeyList = [payment_system_deprecated, bank_name, iso_country_code, card_type, category],
     ExtendData = maps:with(KeyList, BinData),
-    {bank_card,
-        genlib_map:compact(#{
-            bank_card => maps:merge(BankCardParams, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
-            auth_data => maps:get(auth_data, Params, undefined)
-        })};
-create_resource(
-    {crypto_wallet, #{
-        crypto_wallet := #{
-            id := ID,
-            currency := Currency
-        }
-    }},
-    _ResourceDescriptor
-) ->
+    {ok,
+        {bank_card,
+            genlib_map:compact(#{
+                bank_card => maps:merge(BankCardParams, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
+                auth_data => maps:get(auth_data, {bank_card, BankCardParams}, undefined)
+            })}}.
+
+-spec create_crypto_wallet(resource_crypto_wallet_params()) -> {ok, resource()}.
+create_crypto_wallet(#{
+    crypto_wallet := #{
+        id := ID,
+        currency := Currency
+    }
+}) ->
     {ok,
         {crypto_wallet, #{
             crypto_wallet => #{
                 id => ID,
                 currency => Currency
             }
-        }}};
-create_resource(
-    {digital_wallet, #{
-        digital_wallet := #{
-            id := ID,
-            data := Data
-        }
-    }},
-    _ResourceDescriptor
-) ->
+        }}}.
+
+-spec create_digital_wallet(resource_digital_wallet_params()) -> {ok, resource()}.
+create_digital_wallet(#{
+    digital_wallet := #{
+        id := ID,
+        data := Data
+    }
+}) ->
     {ok,
         {digital_wallet, #{
             digital_wallet => #{

@@ -159,8 +159,6 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
-
 -spec token(bank_card()) -> token().
 token(#{token := Token}) ->
     Token.
@@ -251,10 +249,12 @@ create_bank_card(
     } = ResourceBankCardParams,
     {resource_descriptor, ResourceDescriptor}
 ) ->
-    do(fun() ->
-        BinData = unwrap(bin_data, get_bin_data(Token, ResourceDescriptor)),
-        unwrap(create_bank_card(ResourceBankCardParams, {bin_data, BinData}))
-    end);
+    case get_bin_data_(Token, ResourceDescriptor) of
+        {ok, BinData} ->
+            create_bank_card(ResourceBankCardParams, {bin_data, BinData});
+        {error, Error} ->
+            {error, {bin_data, Error}}
+    end;
 create_bank_card(
     #{
         bank_card := BankCardParams

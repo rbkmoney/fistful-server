@@ -425,7 +425,10 @@ create(Params) ->
             party_id => PartyID,
             destination => Destination
         }),
-        {Resource0, VarsetParams1} = create_resource(ResourceParams, ResourceDescriptor, VarsetParams0),
+        {Resource0, VarsetParams1} = unwrap(
+            destination_resource,
+            create_resource(ResourceParams, ResourceDescriptor, VarsetParams0)
+        ),
         Varset0 = build_party_varset(VarsetParams1),
         {ok, PaymentInstitution} = get_payment_institution(Identity, Varset0, DomainRevision),
         PaymentSystem = unwrap(ff_payment_institution:payment_system(PaymentInstitution)),
@@ -466,24 +469,30 @@ create(Params) ->
     end).
 
 -spec create_resource(ff_resource:resource_params(), resource_descriptor() | undefined, party_varset_params()) ->
-    {ff_resource:resource(), party_varset_params()}.
-create_resource({bank_card, #{bank_card := BankCardParams}} = ResourceParams, ResourceDescriptor, VarsetParams0) ->
-    BinData = unwrap(
-        bin_data,
-        ff_resource:get_bin_data(ResourceParams, ResourceDescriptor)
-    ),
-    Resource = unwrap(ff_resource:create_bank_card(BankCardParams, {bin_data, BinData})),
-    VarsetParams1 = genlib_map:compact(VarsetParams0#{
-        resource => Resource,
-        bin_data => BinData
-    }),
-    {Resource, VarsetParams1};
+    {ok, {ff_resource:resource(), party_varset_params()}}
+    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
+create_resource({bank_card, ResourceBankCardParams} = ResourceParams, ResourceDescriptor, VarsetParams0) ->
+    case ff_resource:get_bin_data(ResourceParams, ResourceDescriptor) of
+        {ok, BinData} ->
+            {ok, Resource} = ff_resource:create_bank_card(ResourceBankCardParams, {bin_data, BinData}),
+            VarsetParams1 = genlib_map:compact(VarsetParams0#{
+                resource => Resource,
+                bin_data => BinData
+            }),
+            {ok, {Resource, VarsetParams1}};
+        {error, Error} ->
+            {error, {bin_data, Error}}
+    end;
 create_resource(ResourceParams, ResourceDescriptor, VarsetParams0) ->
-    Resource = unwrap(ff_resource:create_resource(ResourceParams, ResourceDescriptor)),
-    VarsetParams1 = genlib_map:compact(VarsetParams0#{
-        resource => Resource
-    }),
-    {Resource, VarsetParams1}.
+    case ff_resource:create_resource(ResourceParams, ResourceDescriptor) of
+        {ok, Resource} ->
+            VarsetParams1 = genlib_map:compact(VarsetParams0#{
+                resource => Resource
+            }),
+            {ok, {Resource, VarsetParams1}};
+        {error, Error} ->
+            {error, Error}
+    end.
 
 -spec start_adjustment(adjustment_params(), withdrawal_state()) ->
     {ok, process_result()}

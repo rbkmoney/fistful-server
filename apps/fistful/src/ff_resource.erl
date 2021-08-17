@@ -90,7 +90,6 @@
 -type bin_data_error() :: ff_bin_data:bin_data_error().
 -type category() :: binary().
 
--type bank_card_creation_data() :: {resource_descriptor, resource_descriptor() | undefined} | {bin_data, bin_data()}.
 -type resource_descriptor() :: {bank_card, bin_data_id()}.
 
 -type bank_card_auth_data() ::
@@ -141,7 +140,6 @@
 
 -export([get_bin_data/2]).
 -export([create_resource/1]).
--export([create_resource/2]).
 -export([create_bank_card/2]).
 -export([complete_resource/2]).
 -export([bin/1]).
@@ -224,37 +222,30 @@ get_bin_data_(Token, {bank_card, ResourceID}) ->
     {ok, resource()}
     | {error, {bin_data, bin_data_error()}}.
 create_resource({bank_card, ResourceBankCardParams}) ->
-    create_bank_card(ResourceBankCardParams, {resource_descriptor, undefined});
+    create_bank_card(ResourceBankCardParams);
 create_resource({crypto_wallet, ResourceCryptoWalletParams}) ->
     create_crypto_wallet(ResourceCryptoWalletParams);
 create_resource({digital_wallet, ResourceDigitalWalletParams}) ->
     create_digital_wallet(ResourceDigitalWalletParams).
 
--spec create_resource(resource_params(), resource_descriptor() | undefined) ->
+-spec simple_create_bank_card(resource_bank_card_params(), _) ->
     {ok, resource()}
     | {error, {bin_data, bin_data_error()}}.
-create_resource({bank_card, ResourceBankCardParams}, ResourceDescriptor) ->
-    create_bank_card(ResourceBankCardParams, {resource_descriptor, ResourceDescriptor});
-create_resource({crypto_wallet, ResourceCryptoWalletParams}, _ResourceDescriptor) ->
-    create_crypto_wallet(ResourceCryptoWalletParams);
-create_resource({digital_wallet, ResourceDigitalWalletParams}, _ResourceDescriptor) ->
-    create_digital_wallet(ResourceDigitalWalletParams).
-
--spec create_bank_card(resource_bank_card_params(), bank_card_creation_data()) ->
-    {ok, resource()}
-    | {error, {bin_data, bin_data_error()}}.
-create_bank_card(
+simple_create_bank_card(
     #{
         bank_card := #{token := Token}
     } = ResourceBankCardParams,
-    {resource_descriptor, ResourceDescriptor}
+    ResourceDescriptor
 ) ->
-    case get_bin_data_(Token, ResourceDescriptor) of
+    case ff_bin_data:get(Token) of
         {ok, BinData} ->
             create_bank_card(ResourceBankCardParams, {bin_data, BinData});
         {error, Error} ->
             {error, {bin_data, Error}}
-    end;
+    end.
+
+-spec create_bank_card(resource_bank_card_params(), _) ->
+    {ok, resource()}.
 create_bank_card(
     #{
         bank_card := BankCardParams

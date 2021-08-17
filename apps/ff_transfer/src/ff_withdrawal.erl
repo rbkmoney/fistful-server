@@ -418,22 +418,17 @@ create(Params) ->
         PartyRevision = ensure_party_revision_defined(PartyID, quote_party_revision(Quote)),
         ContractID = ff_identity:contract(Identity),
         Destination = unwrap(destination, get_destination(DestinationID)),
-        ResourceParams = ff_destination:resource(Destination),
-        VarsetParams0 = genlib_map:compact(#{
+        Resource = unwrap(
+            destination_resource,
+            create_resource(ff_destination:resource(Destination), ResourceDescriptor, Identity, DomainRevision)
+        ),
+        VarsetParams = genlib_map:compact(#{
             body => Body,
             wallet_id => WalletID,
             party_id => PartyID,
             destination => Destination
         }),
-        {Resource0, VarsetParams1} = unwrap(
-            destination_resource,
-            create_resource(ResourceParams, ResourceDescriptor, VarsetParams0)
-        ),
-        Varset0 = build_party_varset(VarsetParams1),
-        {ok, PaymentInstitution} = get_payment_institution(Identity, Varset0, DomainRevision),
-        PaymentSystem = unwrap(ff_payment_institution:payment_system(PaymentInstitution)),
-        Resource1 = ff_resource:complete_resource(Resource0, PaymentSystem),
-        Varset1 = build_party_varset(VarsetParams1#{resource => Resource1}),
+        Varset1 = build_party_varset(VarsetParams#{resource => Resource}),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
             ContractID,
@@ -464,35 +459,26 @@ create(Params) ->
                     metadata => maps:get(metadata, Params, undefined)
                 })},
             {status_changed, pending},
-            {resource_got, Resource1}
+            {resource_got, Resource}
         ]
     end).
 
--spec create_resource(ff_resource:resource_params(), resource_descriptor() | undefined, party_varset_params()) ->
-    {ok, {ff_resource:resource(), party_varset_params()}}
-    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
-create_resource({bank_card, ResourceBankCardParams} = ResourceParams, ResourceDescriptor, VarsetParams0) ->
+create_resource({bank_card, ResourceBankCardParams} = ResourceParams, ResourceDescriptor, Identity, DomainRevision) ->
     case ff_resource:get_bin_data(ResourceParams, ResourceDescriptor) of
         {ok, BinData} ->
-            {ok, Resource} = ff_resource:create_bank_card(ResourceBankCardParams, {bin_data, BinData}),
-            VarsetParams1 = genlib_map:compact(VarsetParams0#{
-                resource => Resource,
-                bin_data => BinData
-            }),
-            {ok, {Resource, VarsetParams1}};
+            Varset = #{
+                bin_data => ff_dmsl_codec:marshal(bin_data, BinData)
+            },
+            {ok, PaymentInstitution} = get_payment_institution(Identity, Varset, DomainRevision),
+            PaymentSystem = unwrap(ff_payment_institution:payment_system(PaymentInstitution)),
+            {ok, Resource0} = ff_resource:create_bank_card(ResourceBankCardParams, {bin_data, BinData}),
+            Resource1 = ff_resource:complete_resource(Resource0, PaymentSystem),
+            {ok, Resource1};
         {error, Error} ->
             {error, {bin_data, Error}}
     end;
-create_resource(ResourceParams, ResourceDescriptor, VarsetParams0) ->
-    case ff_resource:create_resource(ResourceParams, ResourceDescriptor) of
-        {ok, Resource} ->
-            VarsetParams1 = genlib_map:compact(VarsetParams0#{
-                resource => Resource
-            }),
-            {ok, {Resource, VarsetParams1}};
-        {error, Error} ->
-            {error, Error}
-    end.
+create_resource(ResourceParams, ResourceDescriptor, _Identity, _DomainRevision) ->
+    ff_resource:create_resource(ResourceParams, ResourceDescriptor).
 
 -spec start_adjustment(adjustment_params(), withdrawal_state()) ->
     {ok, process_result()}

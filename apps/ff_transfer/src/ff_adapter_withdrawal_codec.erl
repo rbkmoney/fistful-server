@@ -165,7 +165,6 @@ marshal(
     {bank_card, #{
         bank_card := #{
             token := Token,
-            payment_system_deprecated := PaymentSystemDeprecated,
             bin := BIN,
             masked_pan := LastDigits
         } = BankCard
@@ -174,6 +173,7 @@ marshal(
     CardHolderName = maps:get(cardholder_name, BankCard, undefined),
     ExpDate = maps:get(exp_date, BankCard, undefined),
     PaymentSystem = maps:get(payment_system, BankCard, undefined),
+    PaymentSystemDeprecated = maps:get(payment_system_deprecated, BankCard, undefined),
     {bank_card, #domain_BankCard{
         token = Token,
         payment_system = maybe_marshal(payment_system, PaymentSystem),

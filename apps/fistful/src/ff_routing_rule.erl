@@ -65,12 +65,12 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     | {error, misconfiguration}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
-        case maps:get(RoutingRuleTag, PaymentInstitution) of
+        case maps:get(RoutingRuleTag, PaymentInstitution, undefined) of
             undefined ->
                 logger:log(
                     warning,
-                    "Payment routing rules is undefined, PaymentInstitution: ~p",
-                    [PaymentInstitution]
+                    "RoutingRules ~p is undefined, PaymentInstitution: ~p",
+                    [RoutingRuleTag, PaymentInstitution]
                 ),
                 {[], []};
             RoutingRules ->

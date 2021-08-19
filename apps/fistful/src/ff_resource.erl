@@ -63,7 +63,7 @@
     payment_system_deprecated => payment_system_deprecated(),
     masked_pan => masked_pan(),
     bank_name => bank_name(),
-    iso_country_code => iso_country_code(),
+    issuer_country => issuer_country(),
     card_type => card_type(),
     cardholder_name => binary(),
     exp_date => exp_date(),
@@ -79,7 +79,7 @@
 -type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
 -type bank_name() :: binary().
--type iso_country_code() :: ff_bin_data:iso_country_code().
+-type issuer_country() :: ff_bin_data:iso_country_code().
 -type card_type() :: charge_card | credit | debit | credit_or_debit.
 -type cardholder_name() :: binary().
 -type exp_date() :: {month(), year()}.
@@ -134,7 +134,7 @@
 -export_type([payment_system_deprecated/0]).
 -export_type([masked_pan/0]).
 -export_type([bank_name/0]).
--export_type([iso_country_code/0]).
+-export_type([issuer_country/0]).
 -export_type([category/0]).
 -export_type([card_type/0]).
 
@@ -149,7 +149,7 @@
 -export([masked_pan/1]).
 -export([payment_system/1]).
 -export([payment_system_deprecated/1]).
--export([country_code/1]).
+-export([issuer_country/1]).
 -export([category/1]).
 -export([bank_name/1]).
 -export([exp_date/1]).
@@ -182,9 +182,9 @@ payment_system(BankCard) ->
 payment_system_deprecated(BankCard) ->
     maps:get(payment_system_deprecated, BankCard, undefined).
 
--spec country_code(bank_card()) -> iso_country_code().
-country_code(BankCard) ->
-    maps:get(iso_country_code, BankCard, undefined).
+-spec issuer_country(bank_card()) -> issuer_country().
+issuer_country(BankCard) ->
+    maps:get(issuer_country, BankCard, undefined).
 
 -spec category(bank_card()) -> category().
 category(BankCard) ->
@@ -245,7 +245,7 @@ create_bank_card(#{bank_card := #{token := Token}} = ResourceBankCardParams, Res
 
 -spec create_bank_card_basic(resource_bank_card_params(), bin_data()) -> {ok, resource()}.
 create_bank_card_basic(#{bank_card := BankCardParams} = ResourceBankCardParams, BinData) ->
-    KeyList = [payment_system_deprecated, bank_name, iso_country_code, card_type, category],
+    KeyList = [payment_system_deprecated, bank_name, issuer_country, card_type, category],
     ExtendData = maps:with(KeyList, BinData),
     {ok,
         {bank_card,

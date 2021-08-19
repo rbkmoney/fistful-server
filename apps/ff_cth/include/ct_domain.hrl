@@ -8,6 +8,7 @@
 -define(glob(), #domain_GlobalsRef{}).
 -define(cur(ID), #domain_CurrencyRef{symbolic_code = ID}).
 -define(pmt(C, T), #domain_PaymentMethodRef{id = {C, T}}).
+-define(pmtsys(ID), #domain_PaymentSystemRef{id = ID}).
 -define(cat(ID), #domain_CategoryRef{id = ID}).
 -define(prx(ID), #domain_ProxyRef{id = ID}).
 -define(prv(ID), #domain_ProviderRef{id = ID}).

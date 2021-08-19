@@ -575,6 +575,13 @@ domain_config(Options, C) ->
                             if_ = {constant, true},
                             then_ = {value, []}
                         }
+                    ]},
+                payment_system =
+                    {decisions, [
+                        #domain_PaymentSystemDecision{
+                            if_ = {constant, true},
+                            then_ = {value, ?pmtsys(<<"VISA">>)}
+                        }
                     ]}
             }
         }},
@@ -723,7 +730,9 @@ domain_config(Options, C) ->
         ct_domain:category(?cat(1), <<"Generic Store">>, live),
 
         ct_domain:payment_method(?pmt(bank_card_deprecated, visa)),
-        ct_domain:payment_method(?pmt(bank_card_deprecated, mastercard))
+        ct_domain:payment_method(?pmt(bank_card_deprecated, mastercard)),
+
+        ct_domain:payment_system(?pmtsys(<<"VISA">>), <<"VISA">>)
     ],
     maps:get(domain_config, Options, Default).
 

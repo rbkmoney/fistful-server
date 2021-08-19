@@ -7,6 +7,7 @@
 -export([currency/1]).
 -export([category/3]).
 -export([payment_method/1]).
+-export([payment_system/2]).
 -export([contract_template/2]).
 -export([inspector/3]).
 -export([inspector/4]).
@@ -394,6 +395,15 @@ payment_method(Name, Ref) ->
         data = #domain_PaymentMethodDefinition{
             name = erlang:atom_to_binary(Name, unicode),
             description = <<>>
+        }
+    }}.
+
+-spec payment_system(?dtp('PaymentSystemRef'), binary()) -> object().
+payment_system(Ref, Name) ->
+    {payment_system, #domain_PaymentSystemObject{
+        ref = Ref,
+        data = #domain_PaymentSystem{
+            name = Name
         }
     }}.
 

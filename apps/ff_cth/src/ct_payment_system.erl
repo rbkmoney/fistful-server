@@ -355,7 +355,7 @@ services(Options) ->
         kds => "http://kds:8022/v2/keyring",
         cds => "http://cds:8022/v2/storage",
         identdocstore => "http://cds:8022/v1/identity_document_storage",
-        partymgmt => "http://hellgate:8022/v1/processing/partymgmt",
+        partymgmt => "http://party-management:8022/v1/processing/partymgmt",
         identification => "http://identification:8022/v1/identification",
         binbase => "http://localhost:8222/binbase"
     },

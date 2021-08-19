@@ -16,6 +16,8 @@ services:
     working_dir: $PWD
     command: /sbin/init
     depends_on:
+      party-management:
+        condition: service_healthy
       hellgate:
         condition: service_healthy
       identification:
@@ -180,5 +182,18 @@ services:
       interval: 5s
       timeout: 1s
       retries: 10
+
+  party-management:
+    image: dr2.rbkmoney.com/rbkmoney/party-management:935c91235f88f0669d7dc435be686d834a7d397f
+    command: /opt/party-management/bin/party-management foreground
+    depends_on:
+      - machinegun
+      - dominant
+      - shumway
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 20
 
 EOF

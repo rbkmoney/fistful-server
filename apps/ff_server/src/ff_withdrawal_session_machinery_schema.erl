@@ -445,7 +445,7 @@ created_with_broken_withdrawal_id_test() ->
             bank_card => #{
                 token => <<"token">>,
                 bin_data_id => {binary, <<"bin">>},
-                payment_system => visa
+                payment_system_deprecated => visa
             }
         }},
     Quote = #{
@@ -496,7 +496,7 @@ created_with_broken_withdrawal_id_test() ->
                                         {bin, <<"bin">>}
                                     ]},
                                 {str, <<"token">>} => {bin, <<"token">>},
-                                {str, <<"payment_system">>} => {str, <<"visa">>}
+                                {str, <<"payment_system_deprecated">>} => {str, <<"visa">>}
                             }}
                         ]}
                 }}
@@ -582,7 +582,7 @@ created_v0_3_decoding_test() ->
             bank_card => #{
                 token => <<"token">>,
                 bin_data_id => {binary, <<"bin">>},
-                payment_system => visa
+                payment_system_deprecated => visa
             }
         }},
     Quote = #{
@@ -632,7 +632,7 @@ created_v0_3_decoding_test() ->
                                         {bin, <<"bin">>}
                                     ]},
                                 {str, <<"token">>} => {bin, <<"token">>},
-                                {str, <<"payment_system">>} => {str, <<"visa">>}
+                                {str, <<"payment_system_deprecated">>} => {str, <<"visa">>}
                             }}
                         ]}
                 }}
@@ -733,7 +733,7 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
                     bank_card => #{
                         bin => <<"123456">>,
                         masked_pan => <<"1234">>,
-                        payment_system => visa,
+                        payment_system_deprecated => visa,
                         token => <<"token">>
                     }
                 }}
@@ -784,7 +784,7 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
                                 {arr, [
                                     {str, <<"map">>},
                                     {obj, #{
-                                        {bin, <<"payment_system">>} => {bin, <<"Card">>},
+                                        {bin, <<"payment_system_deprecated">>} => {bin, <<"Card">>},
                                         {bin, <<"timer_timeout">>} => {bin, <<"10">>}
                                     }}
                                 ]}
@@ -826,7 +826,7 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
                                                             {obj, #{
                                                                 {str, <<"bin">>} => {bin, <<"123456">>},
                                                                 {str, <<"masked_pan">>} => {bin, <<"1234">>},
-                                                                {str, <<"payment_system">>} => {str, <<"visa">>},
+                                                                {str, <<"payment_system_deprecated">>} => {str, <<"visa">>},
                                                                 {str, <<"token">>} => {bin, <<"token">>}
                                                             }}
                                                         ]}
@@ -894,7 +894,7 @@ created_v0_unknown_without_provider_decoding_test() ->
                     bank_card => #{
                         bin => <<"123456">>,
                         masked_pan => <<"1234">>,
-                        payment_system => visa,
+                        payment_system_deprecated => visa,
                         token => <<"token">>
                     }
                 }}
@@ -968,7 +968,7 @@ created_v0_unknown_without_provider_decoding_test() ->
                                                             {obj, #{
                                                                 {str, <<"bin">>} => {bin, <<"123456">>},
                                                                 {str, <<"masked_pan">>} => {bin, <<"1234">>},
-                                                                {str, <<"payment_system">>} => {str, <<"visa">>},
+                                                                {str, <<"payment_system_deprecated">>} => {str, <<"visa">>},
                                                                 {str, <<"token">>} => {bin, <<"token">>}
                                                             }}
                                                         ]}
@@ -1087,7 +1087,7 @@ created_v1_decoding_test() ->
             bank_card => #{
                 token => <<"token">>,
                 bin_data_id => {binary, <<"bin">>},
-                payment_system => visa
+                payment_system_deprecated => visa
             }
         }},
     Quote = #{

@@ -136,7 +136,7 @@ enable_health_logging(Check) ->
     EvHandler = {erl_health_event_handler, []},
     maps:map(fun(_, V = {_, _, _}) -> #{runner => V, event_handler => EvHandler} end, Check).
 
--spec get_prometheus_routes() -> {iodata(), module(), _Opts :: any()}.
+-spec get_prometheus_routes() -> [{iodata(), module(), _Opts :: any()}].
 get_prometheus_routes() ->
     [{"/metrics/[:registry]", prometheus_cowboy2_handler, []}].
 

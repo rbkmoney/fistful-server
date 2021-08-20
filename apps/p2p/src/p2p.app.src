@@ -1,7 +1,5 @@
 {application, p2p, [
-    {description,
-        "Person-to-person transfer processing"
-    },
+    {description, "Person-to-person transfer processing"},
     {vsn, "1"},
     {registered, []},
     {applications, [
@@ -17,8 +15,7 @@
     ]},
     {env, []},
     {modules, []},
-    {maintainers, [
-    ]},
+    {maintainers, []},
     {licenses, []},
     {links, ["https://github.com/rbkmoney/fistful-server"]}
 ]}.

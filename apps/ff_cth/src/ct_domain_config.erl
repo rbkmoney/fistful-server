@@ -70,7 +70,7 @@ insert(Objects) ->
             {insert, #'InsertOp'{
                 object = Object
             }}
-         || Object <- Objects
+            || Object <- Objects
         ]
     },
     commit(head(), Commit).
@@ -86,8 +86,8 @@ update(NewObjects) ->
                 old_object = {Tag, {ObjectName, Ref, OldData}},
                 new_object = NewObject
             }}
-         || NewObject = {Tag, {ObjectName, Ref, _Data}} <- NewObjects,
-            OldData <- [get(Revision, {Tag, Ref})]
+            || NewObject = {Tag, {ObjectName, Ref, _Data}} <- NewObjects,
+               OldData <- [get(Revision, {Tag, Ref})]
         ]
     },
     commit(Revision, Commit).
@@ -135,7 +135,7 @@ remove(Objects) ->
             {remove, #'RemoveOp'{
                 object = Object
             }}
-         || Object <- Objects
+            || Object <- Objects
         ]
     },
     commit(head(), Commit).

@@ -125,8 +125,8 @@ validate_identities([A0 | Accounts]) ->
     ProviderID0 = ff_identity:provider(Identity0),
     _ = [
         ok = unwrap(provider, valid(ProviderID0, ff_identity:provider(ff_identity_machine:identity(Identity))))
-     || Account <- Accounts,
-        {ok, Identity} <- [ff_identity_machine:get(ff_account:identity(Account))]
+        || Account <- Accounts,
+           {ok, Identity} <- [ff_identity_machine:get(ff_account:identity(Account))]
     ],
     valid.
 
@@ -229,7 +229,7 @@ maybe_migrate({created, #{postings := Postings} = Transfer}, EvType) ->
             receiver => #{account => maybe_migrate_account(D)},
             volume => B
         }
-     || {S, D, B} <- Postings
+        || {S, D, B} <- Postings
     ],
     maybe_migrate(
         {created, #{
@@ -247,7 +247,7 @@ maybe_migrate(Ev, _) ->
 maybe_migrate_cash_flow(#{postings := CashFlowPostings} = CashFlow, EvType) ->
     NewPostings = [
         maybe_migrate_posting(CashFlowPosting, EvType)
-     || CashFlowPosting <- CashFlowPostings
+        || CashFlowPosting <- CashFlowPostings
     ],
     CashFlow#{postings => NewPostings}.
 

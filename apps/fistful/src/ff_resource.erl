@@ -245,7 +245,7 @@ create_bank_card(#{bank_card := #{token := Token}} = ResourceBankCardParams, Res
 
 -spec create_bank_card_basic(resource_bank_card_params(), bin_data()) -> {ok, resource()}.
 create_bank_card_basic(#{bank_card := BankCardParams} = ResourceBankCardParams, BinData) ->
-    KeyList = [payment_system_deprecated, bank_name, issuer_country, card_type, category],
+    KeyList = [payment_system_deprecated, bank_name, iso_country_code, card_type, category],
     ExtendData = maps:with(KeyList, BinData),
     {ok,
         {bank_card,

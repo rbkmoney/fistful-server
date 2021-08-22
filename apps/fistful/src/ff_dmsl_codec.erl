@@ -136,6 +136,7 @@ unmarshal(
                 token = Token,
                 payment_system = PaymentSystem,
                 payment_system_deprecated = PaymentSystemDeprecated,
+                issuer_country = IssuerCountry,
                 bin = Bin,
                 last_digits = LastDigits,
                 exp_date = ExpDate,
@@ -157,6 +158,7 @@ unmarshal(
                 token => Token,
                 payment_system => maybe_unmarshal(payment_system, PaymentSystem),
                 payment_system_deprecated => PaymentSystemDeprecated,
+                issuer_country => maybe_unmarshal(issuer_country, IssuerCountry),
                 bin => Bin,
                 masked_pan => LastDigits,
                 exp_date => maybe_unmarshal(exp_date, ExpDate),
@@ -175,6 +177,8 @@ unmarshal(payment_system, #'domain_PaymentSystemRef'{
     #{
         id => unmarshal(string, ID)
     };
+unmarshal(issuer_country, V) when is_atom(V) ->
+    V;
 unmarshal(attempt_limit, #domain_AttemptLimit{
     attempts = Attempts
 }) ->

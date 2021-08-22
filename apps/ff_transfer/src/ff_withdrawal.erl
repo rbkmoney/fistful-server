@@ -1139,11 +1139,12 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
 -spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->
     dmsl_domain_thrift:'PaymentTool'().
 construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
+    PaymentSystem = maps:get(payment_system, ResourceBankCard, undefined),
     {bank_card, #domain_BankCard{
         token = maps:get(token, ResourceBankCard),
         bin = maps:get(bin, ResourceBankCard),
         last_digits = maps:get(masked_pan, ResourceBankCard),
-        payment_system = maps:get(payment_system, ResourceBankCard, undefined),
+        payment_system = ff_dmsl_codec:marshal(payment_system, PaymentSystem),
         payment_system_deprecated = maps:get(payment_system_deprecated, ResourceBankCard, undefined),
         issuer_country = maps:get(issuer_country, ResourceBankCard, undefined),
         bank_name = maps:get(bank_name, ResourceBankCard, undefined)

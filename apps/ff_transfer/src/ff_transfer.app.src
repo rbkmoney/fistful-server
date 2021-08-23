@@ -1,5 +1,7 @@
 {application, ff_transfer, [
-    {description, "Transfer processing"},
+    {description,
+        "Transfer processing"
+    },
     {vsn, "1"},
     {registered, []},
     {applications, [

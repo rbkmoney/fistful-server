@@ -1,5 +1,7 @@
 {application, ff_cth, [
-    {description, "Common Common Test helpers"},
+    {description,
+        "Common Common Test helpers"
+    },
     {vsn, "1"},
     {registered, []},
     {applications, [

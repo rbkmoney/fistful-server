@@ -1,5 +1,7 @@
 {application, w2w, [
-    {description, "Wallet-to-wallet transfer processing"},
+    {description,
+        "Wallet-to-wallet transfer processing"
+    },
     {vsn, "1"},
     {registered, []},
     {applications, [
@@ -15,7 +17,8 @@
     ]},
     {env, []},
     {modules, []},
-    {maintainers, []},
+    {maintainers, [
+    ]},
     {licenses, []},
     {links, ["https://github.com/rbkmoney/fistful-server"]}
 ]}.

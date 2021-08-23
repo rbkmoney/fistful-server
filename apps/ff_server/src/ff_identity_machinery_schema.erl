@@ -324,20 +324,19 @@ effective_challenge_changed_v0_decoding_test() ->
 
 -spec challenge_created_v0_decoding_test() -> _.
 challenge_created_v0_decoding_test() ->
-    Change =
-        {
-            {challenge, <<"challengeID">>},
-            {created, #{
-                id => <<"id">>,
-                claimant => <<"claimant">>,
-                provider => <<"provider">>,
-                identity_class => <<"identity_class">>,
-                challenge_class => <<"challenge_class">>,
-                proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
-                master_id => <<"master_id">>,
-                claim_id => <<"claim_id">>
-            }}
-        },
+    Change = {
+        {challenge, <<"challengeID">>},
+        {created, #{
+            id => <<"id">>,
+            claimant => <<"claimant">>,
+            provider => <<"provider">>,
+            identity_class => <<"identity_class">>,
+            challenge_class => <<"challenge_class">>,
+            proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
+            master_id => <<"master_id">>,
+            claim_id => <<"claim_id">>
+        }}
+    },
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
 
     LegacyChange =
@@ -493,20 +492,19 @@ effective_challenge_changed_v1_decoding_test() ->
 
 -spec challenge_created_v1_decoding_test() -> _.
 challenge_created_v1_decoding_test() ->
-    Change =
-        {
-            {challenge, <<"challengeID">>},
-            {created, #{
-                id => <<"id">>,
-                claimant => <<"claimant">>,
-                provider => <<"provider">>,
-                identity_class => <<"identity_class">>,
-                challenge_class => <<"challenge_class">>,
-                proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
-                master_id => <<"master_id">>,
-                claim_id => <<"claim_id">>
-            }}
-        },
+    Change = {
+        {challenge, <<"challengeID">>},
+        {created, #{
+            id => <<"id">>,
+            claimant => <<"claimant">>,
+            provider => <<"provider">>,
+            identity_class => <<"identity_class">>,
+            challenge_class => <<"challenge_class">>,
+            proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
+            master_id => <<"master_id">>,
+            claim_id => <<"claim_id">>
+        }}
+    },
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent =
         {bin,
@@ -593,20 +591,19 @@ effective_challenge_changed_v2_decoding_test() ->
 
 -spec challenge_created_v2_decoding_test() -> _.
 challenge_created_v2_decoding_test() ->
-    Change =
-        {
-            {challenge, <<"challengeID">>},
-            {created, #{
-                id => <<"id">>,
-                claimant => <<"claimant">>,
-                provider => <<"provider">>,
-                identity_class => <<"identity_class">>,
-                challenge_class => <<"challenge_class">>,
-                proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
-                master_id => <<"master_id">>,
-                claim_id => <<"claim_id">>
-            }}
-        },
+    Change = {
+        {challenge, <<"challengeID">>},
+        {created, #{
+            id => <<"id">>,
+            claimant => <<"claimant">>,
+            provider => <<"provider">>,
+            identity_class => <<"identity_class">>,
+            challenge_class => <<"challenge_class">>,
+            proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
+            master_id => <<"master_id">>,
+            claim_id => <<"claim_id">>
+        }}
+    },
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent =
         {bin,

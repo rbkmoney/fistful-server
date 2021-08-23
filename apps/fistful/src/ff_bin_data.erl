@@ -4,7 +4,7 @@
 -include_lib("binbase_proto/include/binbase_msgpack_thrift.hrl").
 
 -type token() :: binary().
--type iso_country_code() :: atom().
+-type issuer_country() :: atom().
 -type payment_system() :: binary().
 -type payment_system_deprecated() :: atom().
 
@@ -15,7 +15,7 @@
     payment_system := payment_system(),
     payment_system_deprecated => payment_system_deprecated(),
     bank_name => binary(),
-    iso_country_code => iso_country_code(),
+    issuer_country => issuer_country(),
     card_type => charge_card | credit | debit | credit_or_debit,
     version := integer()
 }.
@@ -40,7 +40,7 @@
 -export_type([bin_data/0]).
 -export_type([bin_data_id/0]).
 -export_type([bin_data_error/0]).
--export_type([iso_country_code/0]).
+-export_type([issuer_country/0]).
 -export_type([payment_system/0]).
 -export_type([payment_system_deprecated/0]).
 
@@ -112,7 +112,7 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
             payment_system => unwrap(decode_payment_system(PaymentSystem)),
             payment_system_deprecated => decode_payment_system_deprecated(PaymentSystem),
             bank_name => BankName,
-            iso_country_code => unwrap(decode_residence(IsoCountryCode)),
+            issuer_country => unwrap(decode_residence(IsoCountryCode)),
             card_type => decode_card_type(CardType),
             category => Category,
             version => Version

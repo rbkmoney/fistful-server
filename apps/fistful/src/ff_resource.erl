@@ -79,7 +79,7 @@
 -type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
 -type bank_name() :: binary().
--type issuer_country() :: ff_bin_data:iso_country_code().
+-type issuer_country() :: ff_bin_data:issuer_country().
 -type card_type() :: charge_card | credit | debit | credit_or_debit.
 -type cardholder_name() :: binary().
 -type exp_date() :: {month(), year()}.

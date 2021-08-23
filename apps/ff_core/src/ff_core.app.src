@@ -1,5 +1,7 @@
 {application, ff_core, [
-    {description, "Core types and facilities"},
+    {description,
+        "Core types and facilities"
+    },
     {vsn, "1"},
     {registered, []},
     {applications, [

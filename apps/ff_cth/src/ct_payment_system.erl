@@ -668,6 +668,13 @@ domain_config(Options, C) ->
                             if_ = {constant, true},
                             then_ = {value, []}
                         }
+                    ]},
+                payment_system =
+                    {decisions, [
+                        #domain_PaymentSystemDecision{
+                            if_ = {constant, true},
+                            then_ = {value, ?pmtsys(<<"VISA">>)}
+                        }
                     ]}
             }
         }},

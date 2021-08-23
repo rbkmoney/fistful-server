@@ -1,7 +1,5 @@
 {application, machinery_extra, [
-    {description,
-        "Machinery extra backends / utilities"
-    },
+    {description, "Machinery extra backends / utilities"},
     {vsn, "1"},
     {registered, []},
     {applications, [

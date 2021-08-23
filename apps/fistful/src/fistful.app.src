@@ -1,7 +1,5 @@
 {application, fistful, [
-    {description,
-        "Wallet processing"
-    },
+    {description, "Wallet processing"},
     {vsn, "1"},
     {registered, []},
     {applications, [

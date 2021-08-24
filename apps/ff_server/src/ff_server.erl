@@ -119,6 +119,7 @@ init([]) ->
                 handlers => WoodyHandlers,
                 event_handler => scoper_woody_event_handler,
                 additional_routes =>
+                    get_prometheus_routes() ++
                     machinery_mg_backend:get_routes(MachineHandlers, RouteOpts) ++
                     machinery_modernizer_mg_backend:get_routes(ModernizerHandlers, RouteOpts) ++
                     [erl_health_handle:get_route(enable_health_logging(HealthCheck))]
@@ -134,6 +135,10 @@ init([]) ->
 enable_health_logging(Check) ->
     EvHandler = {erl_health_event_handler, []},
     maps:map(fun(_, V = {_, _, _}) -> #{runner => V, event_handler => EvHandler} end, Check).
+
+-spec get_prometheus_routes() -> [{iodata(), module(), _Opts :: any()}].
+get_prometheus_routes() ->
+    [{"/metrics/[:registry]", prometheus_cowboy2_handler, []}].
 
 -spec get_handler(ff_services:service_name(), woody:handler(_), map()) -> woody:http_handler(woody:th_handler()).
 get_handler(Service, Handler, WrapperOpts) ->

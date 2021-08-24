@@ -71,6 +71,7 @@
         bin = <<>>,
         last_digits = <<>>,
         bank_name = BankName,
+        payment_system = #{id = <<"VISA">>},
         payment_system_deprecated = visa,
         issuer_country = rus
     }}

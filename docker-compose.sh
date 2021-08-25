@@ -18,8 +18,6 @@ services:
     depends_on:
       party-management:
         condition: service_healthy
-      hellgate:
-        condition: service_healthy
       identification:
         condition: service_healthy
       cds:
@@ -30,24 +28,6 @@ services:
         condition: service_healthy
       adapter-mocketbank:
         condition: service_healthy
-
-  hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:ce90c673ba8e334f0615005fe58684223bdd3744
-    command: /opt/hellgate/bin/hellgate foreground
-    depends_on:
-      machinegun:
-        condition: service_healthy
-      dominant:
-        condition: service_healthy
-      shumway:
-        condition: service_healthy
-    volumes:
-      - ./test/hellgate/sys.config:/opt/hellgate/releases/0.1/sys.config
-    healthcheck:
-      test: "curl http://localhost:8022/"
-      interval: 5s
-      timeout: 1s
-      retries: 10
 
   adapter-mocketbank:
     depends_on:
@@ -62,7 +42,6 @@ services:
         --server.port=8022
         --cds.client.storage.url=http://cds:8022/v2/storage
         --cds.client.identity-document-storage.url=http://cds:8022/v1/identity_document_storage
-        --hellgate.client.adapter.url=http://hellgate:8022/v1/proxyhost/provider
         --fistful.client.adapter.url=http://fisful-server:8022/v1/ff_p2p_adapter_host
 
     working_dir: /opt/proxy-mocketbank

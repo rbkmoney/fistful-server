@@ -3,10 +3,7 @@ erlang:
     secret_cookie_file: "/opt/machinegun/etc/cookie"
 namespaces:
 
-  # Hellgate
-  invoice:
-      processor:
-          url: http://hellgate:8022/v1/stateproc/invoice
+  # Party
   party:
       processor:
           url: http://party-management:8022/v1/stateproc/party

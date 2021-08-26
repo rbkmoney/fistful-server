@@ -414,22 +414,23 @@ create(Params) ->
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         accessible = unwrap(wallet, ff_wallet:is_accessible(Wallet)),
         Identity = get_wallet_identity(Wallet),
-        PartyID = ff_identity:party(Identity),
-        PartyRevision = ensure_party_revision_defined(PartyID, quote_party_revision(Quote)),
-        ContractID = ff_identity:contract(Identity),
         Destination = unwrap(destination, get_destination(DestinationID)),
         ResourceParams = ff_destination:resource(Destination),
         Resource = unwrap(
             destination_resource,
             create_resource(ResourceParams, ResourceDescriptor, Identity, DomainRevision)
         ),
+        PartyID = ff_identity:party(Identity),
         VarsetParams = genlib_map:compact(#{
             body => Body,
             wallet_id => WalletID,
             party_id => PartyID,
-            destination => Destination
+            destination => Destination,
+            resource => Resource
         }),
-        Varset = build_party_varset(VarsetParams#{resource => Resource}),
+        Varset = build_party_varset(VarsetParams),
+        PartyRevision = ensure_party_revision_defined(PartyID, quote_party_revision(Quote)),
+        ContractID = ff_identity:contract(Identity),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
             ContractID,

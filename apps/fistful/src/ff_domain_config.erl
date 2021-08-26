@@ -8,7 +8,7 @@
 -export([object/2]).
 -export([head/0]).
 
--type revision() :: pos_integer().
+-type revision() :: dmt_client:version().
 -type object_data() :: any().
 -type object_ref() :: dmsl_domain_thrift:'Reference'().
 
@@ -24,15 +24,10 @@
 object(ObjectRef) ->
     object(head(), ObjectRef).
 
--spec object(head | revision() | dmt_client:ref(), object_ref()) -> {ok, object_data()} | {error, notfound}.
-object(head, ObjectRef) ->
-    object({head, #'Head'{}}, ObjectRef);
-object(Revision, ObjectRef) when is_integer(Revision) ->
-    object({version, Revision}, ObjectRef);
-object(Ref, {Type, ObjectRef}) ->
-    try dmt_client:checkout_object(Ref, {Type, ObjectRef}) of
-        #'VersionedObject'{object = Object} ->
-            {Type, {_RecordName, ObjectRef, ObjectData}} = Object,
+-spec object(dmt_client:version(), object_ref()) -> {ok, object_data()} | {error, notfound}.
+object(Version, Ref = {Type, ObjectRef}) ->
+    try dmt_client:checkout_object(Version, Ref) of
+        {Type, {_RecordName, ObjectRef, ObjectData}} ->
             {ok, ObjectData}
     catch
         #'ObjectNotFound'{} ->

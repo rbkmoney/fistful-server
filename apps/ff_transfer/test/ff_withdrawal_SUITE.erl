@@ -527,7 +527,7 @@ use_quote_revisions_test(C) ->
     Time = ff_time:now(),
     DomainRevision = ff_domain_config:head(),
     {ok, PartyRevision} = ff_party:get_revision(PartyID),
-    ok = ct_domain_config:bump_revision(),
+    _ = ct_domain_config:bump_revision(),
     ok = make_dummy_party_change(PartyID),
     ?assertNotEqual(DomainRevision, ff_domain_config:head()),
     ?assertNotEqual({ok, PartyRevision}, ff_party:get_revision(PartyID)),

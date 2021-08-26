@@ -83,7 +83,7 @@ start_app(dmt_client = AppName) ->
             % milliseconds
             {cache_update_interval, 500},
             {max_cache_size, #{
-                elements => 1,
+                elements => 10,
                 % 50Mb
                 memory => 52428800
             }},

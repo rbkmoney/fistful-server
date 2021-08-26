@@ -89,9 +89,9 @@ ref(ID) ->
     {ok, provider()}
     | {error, notfound}.
 get(ID) ->
-    get(head, ID).
+    get(latest, ID).
 
--spec get(head | ff_domain_config:revision(), id()) ->
+-spec get(ff_domain_config:revision(), id()) ->
     {ok, provider()}
     | {error, notfound}.
 get(DomainRevision, ID) ->

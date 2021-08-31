@@ -579,8 +579,33 @@ domain_config(Options, C) ->
                 payment_system =
                     {decisions, [
                         #domain_PaymentSystemDecision{
-                            if_ = {constant, true},
+                            if_ =
+                                {any_of,
+                                    ordsets:from_list([
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"VISA">>},
+                                                bank_name = {equals, <<"uber">>}
+                                            }}},
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"VISA">>},
+                                                bank_name = {equals, <<"sber">>}
+                                            }}}
+                                    ])},
                             then_ = {value, ?pmtsys(<<"VISA">>)}
+                        },
+                        #domain_PaymentSystemDecision{
+                            if_ =
+                                {any_of,
+                                    ordsets:from_list([
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"NSPK MIR">>},
+                                                bank_name = {equals, <<"poopa">>}
+                                            }}}
+                                    ])},
+                            then_ = {value, ?pmtsys(<<"NSPK MIR">>)}
                         }
                     ]}
             }
@@ -672,8 +697,33 @@ domain_config(Options, C) ->
                 payment_system =
                     {decisions, [
                         #domain_PaymentSystemDecision{
-                            if_ = {constant, true},
+                            if_ =
+                                {any_of,
+                                    ordsets:from_list([
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"VISA">>},
+                                                bank_name = {equals, <<"uber">>}
+                                            }}},
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"VISA">>},
+                                                bank_name = {equals, <<"sber">>}
+                                            }}}
+                                    ])},
                             then_ = {value, ?pmtsys(<<"VISA">>)}
+                        },
+                        #domain_PaymentSystemDecision{
+                            if_ =
+                                {any_of,
+                                    ordsets:from_list([
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"NSPK MIR">>},
+                                                bank_name = {equals, <<"poopa">>}
+                                            }}}
+                                    ])},
+                            then_ = {value, ?pmtsys(<<"NSPK MIR">>)}
                         }
                     ]}
             }
@@ -739,7 +789,8 @@ domain_config(Options, C) ->
         ct_domain:payment_method(?pmt(bank_card_deprecated, visa)),
         ct_domain:payment_method(?pmt(bank_card_deprecated, mastercard)),
 
-        ct_domain:payment_system(?pmtsys(<<"VISA">>), <<"VISA">>)
+        ct_domain:payment_system(?pmtsys(<<"VISA">>), <<"VISA">>),
+        ct_domain:payment_system(?pmtsys(<<"NSPK MIR">>), <<"NSPK MIR">>)
     ],
     maps:get(domain_config, Options, Default).
 

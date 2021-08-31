@@ -325,11 +325,11 @@ convert_to_route_test() ->
     ),
     ?assertEqual(
         [
-            #{provider_id => 100,terminal_id => 2000,version => 1},
-            #{provider_id => 100,terminal_id => 2001,version => 1},
-            #{provider_id => 200,terminal_id => 2100,version => 1},
-            #{provider_id => 200,terminal_id => 2101,version => 1},
-            #{provider_id => 300,terminal_id => 2200,version => 1}
+            #{provider_id => 100, terminal_id => 2000, version => 1},
+            #{provider_id => 100, terminal_id => 2001, version => 1},
+            #{provider_id => 200, terminal_id => 2100, version => 1},
+            #{provider_id => 200, terminal_id => 2101, version => 1},
+            #{provider_id => 300, terminal_id => 2200, version => 1}
         ],
         convert_to_route(#{
             1000 => [{100, 2000}, {100, 2001}],
@@ -337,6 +337,5 @@ convert_to_route_test() ->
             100 => [{300, 2200}]
         })
     ).
-
 
 -endif.

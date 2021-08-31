@@ -145,7 +145,7 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}, Domain
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
-    {Acc, RejectConext} =
+    {Acc, RejectContext} =
         case validate_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
@@ -157,7 +157,7 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}, Domain
                 RejectContext1 = maps:put(rejected_routes, RejectedRoutes1, RejectContext0),
                 {Acc0, RejectContext1}
         end,
-    filter_valid_routes_(Rest, PartyVarset, {RejectConext, Acc}, DomainRevision).
+    filter_valid_routes_(Rest, PartyVarset, {Acc, RejectContext}, DomainRevision).
 
 -spec filter_routes_legacy([provider_id()], party_varset(), domain_revision()) ->
     {ok, [route()]} | {error, route_not_found}.
@@ -309,3 +309,33 @@ convert_to_route(ProviderTerminalMap) ->
         [],
         lists:keysort(1, maps:to_list(ProviderTerminalMap))
     ).
+
+%% TESTS
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec convert_to_route_test() -> _.
+convert_to_route_test() ->
+    ?assertEqual(
+        [],
+        convert_to_route(#{})
+    ),
+    ?assertEqual(
+        [
+            #{provider_id => 100, terminal_id => 2000, version => 1},
+            #{provider_id => 100, terminal_id => 2001, version => 1},
+            #{provider_id => 200, terminal_id => 2100, version => 1},
+            #{provider_id => 200, terminal_id => 2101, version => 1},
+            #{provider_id => 300, terminal_id => 2200, version => 1}
+        ],
+        convert_to_route(#{
+            1000 => [{100, 2000}, {100, 2001}],
+            900 => [{200, 2100}, {200, 2101}],
+            100 => [{300, 2200}]
+        })
+    ).
+
+-endif.

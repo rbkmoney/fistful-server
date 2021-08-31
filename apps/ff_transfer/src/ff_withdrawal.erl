@@ -478,9 +478,7 @@ create_resource(
             },
             {ok, PaymentInstitution} = get_payment_institution(Identity, Varset, DomainRevision),
             PaymentSystem = unwrap(ff_payment_institution:payment_system(PaymentInstitution)),
-            {ok, Resource0} = ff_resource:create_bank_card_basic(ResourceBankCardParams, BinData),
-            Resource1 = ff_resource:complete_bank_card(Resource0, PaymentSystem),
-            {ok, Resource1};
+            ff_resource:create_bank_card_basic(ResourceBankCardParams, BinData, PaymentSystem);
         {error, Error} ->
             {error, {bin_data, Error}}
     end;

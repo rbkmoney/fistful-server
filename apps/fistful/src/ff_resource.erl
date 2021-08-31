@@ -141,8 +141,7 @@
 -export([get_bin_data/2]).
 -export([create_resource/1]).
 -export([create_resource/2]).
--export([create_bank_card_basic/2]).
--export([complete_bank_card/2]).
+-export([create_bank_card_basic/3]).
 -export([bin/1]).
 -export([bin_data_id/1]).
 -export([token/1]).
@@ -238,29 +237,23 @@ create_resource({digital_wallet, ResourceDigitalWalletParams}, _ResourceDescript
 create_bank_card(#{bank_card := #{token := Token}} = ResourceBankCardParams, ResourceDescriptor) ->
     case get_bin_data(Token, ResourceDescriptor) of
         {ok, BinData} ->
-            create_bank_card_basic(ResourceBankCardParams, BinData);
+            create_bank_card_basic(ResourceBankCardParams, BinData, undefined);
         {error, Error} ->
             {error, {bin_data, Error}}
     end.
 
--spec create_bank_card_basic(resource_bank_card_params(), bin_data()) -> {ok, resource()}.
-create_bank_card_basic(#{bank_card := BankCardParams} = ResourceBankCardParams, BinData) ->
+-spec create_bank_card_basic(resource_bank_card_params(), bin_data(), payment_system() | undefined) -> {ok, resource()}.
+create_bank_card_basic(#{bank_card := BankCardParams0} = ResourceBankCardParams, BinData, PaymentSystem) ->
     KeyList = [payment_system_deprecated, bank_name, issuer_country, card_type, category],
-    ExtendData = maps:with(KeyList, BinData),
+    ExtendData0 = maps:with(KeyList, BinData),
+    ExtendData1 = ExtendData0#{bin_data_id => ff_bin_data:id(BinData)},
+    BankCardParams1 = genlib_map:compact(BankCardParams0#{payment_system => PaymentSystem}),
     {ok,
         {bank_card,
             genlib_map:compact(#{
-                bank_card => maps:merge(BankCardParams, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
+                bank_card => maps:merge(BankCardParams1, ExtendData1),
                 auth_data => maps:get(auth_data, ResourceBankCardParams, undefined)
             })}}.
-
--spec complete_bank_card(resource(), payment_system()) -> resource().
-complete_bank_card({bank_card, #{bank_card := BankCard} = ResourceBankCard}, PaymentSystem) ->
-    {bank_card, ResourceBankCard#{
-        bank_card => BankCard#{
-            payment_system => PaymentSystem
-        }
-    }}.
 
 -spec create_crypto_wallet(resource_crypto_wallet_params()) -> {ok, resource()}.
 create_crypto_wallet(#{

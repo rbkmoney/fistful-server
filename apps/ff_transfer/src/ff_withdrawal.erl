@@ -252,6 +252,7 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type session_id() :: id().
 -type destination_resource() :: ff_destination:resource_full().
+-type bin_data() :: ff_bin_data:bin_data().
 -type cash() :: ff_cash:cash().
 -type cash_range() :: ff_range:range(cash()).
 -type failure() :: ff_failure:failure().
@@ -285,7 +286,8 @@
     wallet_id := wallet_id(),
     party_id := party_id(),
     destination => destination(),
-    resource => destination_resource()
+    resource => destination_resource(),
+    bin_data := bin_data()
 }.
 
 -type activity() ::
@@ -411,16 +413,14 @@ create(Params) ->
         DomainRevision = ensure_domain_revision_defined(quote_domain_revision(Quote)),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         accessible = unwrap(wallet, ff_wallet:is_accessible(Wallet)),
+        Identity = get_wallet_identity(Wallet),
         Destination = unwrap(destination, get_destination(DestinationID)),
+        ResourceParams = ff_destination:resource(Destination),
         Resource = unwrap(
             destination_resource,
-            ff_resource:create_resource(ff_destination:resource(Destination), ResourceDescriptor)
+            create_resource(ResourceParams, ResourceDescriptor, Identity, DomainRevision)
         ),
-
-        Identity = get_wallet_identity(Wallet),
-        PartyID = ff_identity:party(get_wallet_identity(Wallet)),
-        PartyRevision = ensure_party_revision_defined(PartyID, quote_party_revision(Quote)),
-        ContractID = ff_identity:contract(Identity),
+        PartyID = ff_identity:party(Identity),
         VarsetParams = genlib_map:compact(#{
             body => Body,
             wallet_id => WalletID,
@@ -428,10 +428,13 @@ create(Params) ->
             destination => Destination,
             resource => Resource
         }),
+        Varset = build_party_varset(VarsetParams),
+        PartyRevision = ensure_party_revision_defined(PartyID, quote_party_revision(Quote)),
+        ContractID = ff_identity:contract(Identity),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID,
             ContractID,
-            build_party_varset(VarsetParams),
+            Varset,
             Timestamp,
             PartyRevision,
             DomainRevision
@@ -461,6 +464,26 @@ create(Params) ->
             {resource_got, Resource}
         ]
     end).
+
+create_resource(
+    {bank_card, #{bank_card := #{token := Token}} = ResourceBankCardParams},
+    ResourceDescriptor,
+    Identity,
+    DomainRevision
+) ->
+    case ff_resource:get_bin_data(Token, ResourceDescriptor) of
+        {ok, BinData} ->
+            Varset = #{
+                bin_data => ff_dmsl_codec:marshal(bin_data, BinData)
+            },
+            {ok, PaymentInstitution} = get_payment_institution(Identity, Varset, DomainRevision),
+            PaymentSystem = unwrap(ff_payment_institution:payment_system(PaymentInstitution)),
+            ff_resource:create_bank_card_basic(ResourceBankCardParams, BinData, PaymentSystem);
+        {error, Error} ->
+            {error, {bin_data, Error}}
+    end;
+create_resource(ResourceParams, ResourceDescriptor, _Identity, _DomainRevision) ->
+    ff_resource:create_resource(ResourceParams, ResourceDescriptor).
 
 -spec start_adjustment(adjustment_params(), withdrawal_state()) ->
     {ok, process_result()}
@@ -979,8 +1002,7 @@ make_final_cash_flow(Withdrawal) ->
     ProviderAccounts = ff_payouts_provider:accounts(Provider),
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
-    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+    {ok, PaymentInstitution} = get_payment_institution(Identity, PartyVarset, DomainRevision),
     {ok, SystemAccounts} = ff_payment_institution:system_accounts(PaymentInstitution, DomainRevision),
     SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
@@ -1083,11 +1105,18 @@ get_identity(IdentityID) ->
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     ff_identity_machine:identity(IdentityMachine).
 
+-spec get_payment_institution(identity(), party_varset(), domain_revision()) ->
+    {ok, ff_payment_institution:payment_institution()}.
+get_payment_institution(Identity, PartyVarset, DomainRevision) ->
+    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
+    ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision).
+
 -spec build_party_varset(party_varset_params()) -> party_varset().
 build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} = Params) ->
     {_, CurrencyID} = Body,
     Destination = maps:get(destination, Params, undefined),
     Resource = maps:get(resource, Params, undefined),
+    BinData = maps:get(bin_data, Params, undefined),
     PaymentTool =
         case {Destination, Resource} of
             {undefined, _} ->
@@ -1102,18 +1131,21 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
         wallet_id => WalletID,
         payout_method => #domain_PayoutMethodRef{id = wallet_info},
         % TODO it's not fair, because it's PAYOUT not PAYMENT tool.
-        payment_tool => PaymentTool
+        payment_tool => PaymentTool,
+        bin_data => ff_dmsl_codec:marshal(bin_data, BinData)
     }).
 
 -spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->
     dmsl_domain_thrift:'PaymentTool'().
 construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
+    PaymentSystem = maps:get(payment_system, ResourceBankCard, undefined),
     {bank_card, #domain_BankCard{
         token = maps:get(token, ResourceBankCard),
         bin = maps:get(bin, ResourceBankCard),
         last_digits = maps:get(masked_pan, ResourceBankCard),
-        payment_system_deprecated = maps:get(payment_system, ResourceBankCard),
-        issuer_country = maps:get(iso_country_code, ResourceBankCard, undefined),
+        payment_system = ff_dmsl_codec:marshal(payment_system, PaymentSystem),
+        payment_system_deprecated = maps:get(payment_system_deprecated, ResourceBankCard, undefined),
+        issuer_country = maps:get(issuer_country, ResourceBankCard, undefined),
         bank_name = maps:get(bank_name, ResourceBankCard, undefined)
     }};
 construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currency, _}}}}) ->

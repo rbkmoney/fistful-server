@@ -17,7 +17,6 @@
 -type metadata() :: ff_entity_context:md().
 -type timestamp() :: ff_time:timestamp_ms().
 
--type resource_type() :: ff_resource:resource_type().
 -type resource() :: ff_resource:resource_params().
 -type resource_full() :: ff_resource:resource().
 
@@ -72,7 +71,6 @@
 -export_type([destination_state/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
--export_type([resource_type/0]).
 -export_type([resource_full/0]).
 -export_type([params/0]).
 -export_type([event/0]).

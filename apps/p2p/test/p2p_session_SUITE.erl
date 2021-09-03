@@ -248,7 +248,7 @@ prepare_standard_environment(TokenPrefix, TransferCash, C) ->
 
 prepare_resource(#{token := Token} = RawBankCard) ->
     {ok, BinData} = ff_bin_data:get(Token, undefined),
-    KeyList = [payment_system, bank_name, iso_country_code, card_type],
+    KeyList = [payment_system_deprecated, bank_name, card_type],
     ExtendData = maps:with(KeyList, BinData),
     {bank_card, #{
         bank_card => maps:merge(RawBankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),

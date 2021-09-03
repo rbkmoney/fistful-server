@@ -19,7 +19,8 @@
     payout_method => dmsl_domain_thrift:'PayoutMethodRef'(),
     wallet_id => dmsl_domain_thrift:'WalletID'(),
     identification_level => dmsl_domain_thrift:'ContractorIdentificationLevel'(),
-    p2p_tool => dmsl_domain_thrift:'P2PTool'()
+    p2p_tool => dmsl_domain_thrift:'P2PTool'(),
+    bin_data => dmsl_domain_thrift:'BinData'()
 }.
 
 -type encoded_varset() :: dmsl_payment_processing_thrift:'Varset'().
@@ -35,7 +36,8 @@ encode(Varset) ->
         payment_tool = PaymentTool,
         payment_method = encode_payment_method(PaymentTool),
         identification_level = genlib_map:get(identification_level, Varset),
-        party_id = genlib_map:get(party_id, Varset)
+        party_id = genlib_map:get(party_id, Varset),
+        bin_data = genlib_map:get(bin_data, Varset)
     }.
 
 -spec encode_payment_method(ff_destination:resource() | undefined) ->

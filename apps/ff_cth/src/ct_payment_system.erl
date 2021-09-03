@@ -356,7 +356,7 @@ services(Options) ->
         kds => "http://kds:8022/v2/keyring",
         cds => "http://cds:8022/v2/storage",
         identdocstore => "http://cds:8022/v1/identity_document_storage",
-        partymgmt => "http://hellgate:8022/v1/processing/partymgmt",
+        partymgmt => "http://party-management:8022/v1/processing/partymgmt",
         identification => "http://identification:8022/v1/identification",
         binbase => "http://localhost:8222/binbase"
     },
@@ -576,6 +576,38 @@ domain_config(Options, C) ->
                             if_ = {constant, true},
                             then_ = {value, []}
                         }
+                    ]},
+                payment_system =
+                    {decisions, [
+                        #domain_PaymentSystemDecision{
+                            if_ =
+                                {any_of,
+                                    ordsets:from_list([
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"VISA">>},
+                                                bank_name = {equals, <<"uber">>}
+                                            }}},
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"VISA">>},
+                                                bank_name = {equals, <<"sber">>}
+                                            }}}
+                                    ])},
+                            then_ = {value, ?pmtsys(<<"VISA">>)}
+                        },
+                        #domain_PaymentSystemDecision{
+                            if_ =
+                                {any_of,
+                                    ordsets:from_list([
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"NSPK MIR">>},
+                                                bank_name = {equals, <<"poopa">>}
+                                            }}}
+                                    ])},
+                            then_ = {value, ?pmtsys(<<"NSPK MIR">>)}
+                        }
                     ]}
             }
         }},
@@ -662,6 +694,38 @@ domain_config(Options, C) ->
                             if_ = {constant, true},
                             then_ = {value, []}
                         }
+                    ]},
+                payment_system =
+                    {decisions, [
+                        #domain_PaymentSystemDecision{
+                            if_ =
+                                {any_of,
+                                    ordsets:from_list([
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"VISA">>},
+                                                bank_name = {equals, <<"uber">>}
+                                            }}},
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"VISA">>},
+                                                bank_name = {equals, <<"sber">>}
+                                            }}}
+                                    ])},
+                            then_ = {value, ?pmtsys(<<"VISA">>)}
+                        },
+                        #domain_PaymentSystemDecision{
+                            if_ =
+                                {any_of,
+                                    ordsets:from_list([
+                                        {condition,
+                                            {bin_data, #domain_BinDataCondition{
+                                                payment_system = {equals, <<"NSPK MIR">>},
+                                                bank_name = {equals, <<"poopa">>}
+                                            }}}
+                                    ])},
+                            then_ = {value, ?pmtsys(<<"NSPK MIR">>)}
+                        }
                     ]}
             }
         }},
@@ -724,7 +788,10 @@ domain_config(Options, C) ->
         ct_domain:category(?cat(1), <<"Generic Store">>, live),
 
         ct_domain:payment_method(?pmt(bank_card_deprecated, visa)),
-        ct_domain:payment_method(?pmt(bank_card_deprecated, mastercard))
+        ct_domain:payment_method(?pmt(bank_card_deprecated, mastercard)),
+
+        ct_domain:payment_system(?pmtsys(<<"VISA">>), <<"VISA">>),
+        ct_domain:payment_system(?pmtsys(<<"NSPK MIR">>), <<"NSPK MIR">>)
     ],
     maps:get(domain_config, Options, Default).
 

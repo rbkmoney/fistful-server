@@ -15,7 +15,8 @@
     p2p_providers := dmsl_domain_thrift:'ProviderSelector'(),
     p2p_inspector := dmsl_domain_thrift:'P2PInspectorSelector'(),
     withdrawal_routing_rules := dmsl_domain_thrift:'RoutingRules'(),
-    p2p_transfer_routing_rules := dmsl_domain_thrift:'RoutingRules'()
+    p2p_transfer_routing_rules := dmsl_domain_thrift:'RoutingRules'(),
+    payment_system := dmsl_domain_thrift:'PaymentSystemSelector'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -41,6 +42,7 @@
 -export([p2p_transfer_providers/1]).
 -export([p2p_inspector/1]).
 -export([system_accounts/2]).
+-export([payment_system/1]).
 
 %% Pipeline
 
@@ -74,6 +76,18 @@ get_selector_value(Name, Selector) ->
             {ok, V};
         Ambiguous ->
             {error, {misconfiguration, {'Could not reduce selector to a value', {Name, Ambiguous}}}}
+    end.
+
+-spec payment_system(payment_institution()) ->
+    {ok, ff_resource:payment_system()}
+    | {error, term()}.
+payment_system(PaymentInstitution) ->
+    PaymentSystem = maps:get(payment_system, PaymentInstitution, undefined),
+    case get_selector_value(payment_system, PaymentSystem) of
+        {ok, #'domain_PaymentSystemRef'{id = ID}} ->
+            {ok, #{id => ID}};
+        {error, Error} ->
+            {error, Error}
     end.
 
 -spec withdrawal_providers(payment_institution()) ->
@@ -127,9 +141,10 @@ decode(ID, #domain_PaymentInstitution{
     p2p_providers = P2PProviders,
     p2p_inspector = P2PInspector,
     withdrawal_routing_rules = WithdrawalRoutingRules,
-    p2p_transfer_routing_rules = P2PTransferRoutingRules
+    p2p_transfer_routing_rules = P2PTransferRoutingRules,
+    payment_system = PaymentSystem
 }) ->
-    #{
+    genlib_map:compact(#{
         id => ID,
         system_accounts => SystemAccounts,
         identity => Identity,
@@ -137,8 +152,9 @@ decode(ID, #domain_PaymentInstitution{
         p2p_providers => P2PProviders,
         p2p_inspector => P2PInspector,
         withdrawal_routing_rules => WithdrawalRoutingRules,
-        p2p_transfer_routing_rules => P2PTransferRoutingRules
-    }.
+        p2p_transfer_routing_rules => P2PTransferRoutingRules,
+        payment_system => PaymentSystem
+    }).
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->
     maps:fold(

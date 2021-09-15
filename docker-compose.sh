@@ -66,7 +66,7 @@ services:
       retries: 10
 
   shumway:
-    image: dr2.rbkmoney.com/rbkmoney/shumway:e946e83703e02f4359cd536b15fb94457f9bfb20
+    image: dr2.rbkmoney.com/rbkmoney/shumway:44eb989065b27be619acd16b12ebdb2288b46c36
     restart: unless-stopped
     entrypoint:
       - java

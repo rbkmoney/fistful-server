@@ -10,7 +10,6 @@
         erl_health,
         prometheus,
         prometheus_cowboy,
-        how_are_you,
         scoper,
         party_client,
         fistful_proto,

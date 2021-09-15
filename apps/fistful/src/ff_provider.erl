@@ -13,7 +13,6 @@
 -module(ff_provider).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
--include_lib("ff_cth/include/ct_domain.hrl").
 
 -type id() :: binary().
 -type provider() :: #{
@@ -98,7 +97,7 @@ get(ID) ->
         %  - We need to somehow expose these things in the domain config
         %  - Possibly inconsistent view of domain config
         C = unwrap(get_provider_config(ID)),
-        PaymentInstitutionRef = ?payinst(maps:get(payment_institution_id, C)),
+        PaymentInstitutionRef = #domain_PaymentInstitutionRef{id = maps:get(payment_institution_id, C)},
         Routes = maps:get(routes, C),
         {ok, PaymentInstitution} = ff_domain_config:object({payment_institution, PaymentInstitutionRef}),
         IdentityClasses = maps:map(
@@ -144,7 +143,7 @@ list_providers() ->
 
 decode_identity_class(ICID, ICC) ->
     Name = maps:get(name, ICC, ICID),
-    ContractTemplateRef = ?tmpl(maps:get(contract_template_id, ICC)),
+    ContractTemplateRef = #domain_ContractTemplateRef{id = maps:get(contract_template_id, ICC)},
     {ok, _} = ff_domain_config:object({contract_template, ContractTemplateRef}),
     Levels = maps:map(
         fun(LID, LC) ->

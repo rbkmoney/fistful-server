@@ -13,9 +13,6 @@
         fistful,
         ff_transfer
     ]},
-    {env, []},
-    {modules, []},
-    {maintainers, []},
-    {licenses, []},
+    {licenses, ["Apache 2.0"]},
     {links, ["https://github.com/rbkmoney/fistful-server"]}
 ]}.

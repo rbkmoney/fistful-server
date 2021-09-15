@@ -13,7 +13,3 @@ docker-compose.yml
 /.idea/
 *.beam
 /test/log/
-
-# wapi
-apps/swag_*
-tags

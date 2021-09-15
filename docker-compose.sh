@@ -52,7 +52,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:22dad3f2b8655bae2125db116ddd61652160d128
+    image: dr2.rbkmoney.com/rbkmoney/dominant:753f3e0711fc7fff91abcad6e279225a7e5b8b8c
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -99,7 +99,7 @@ services:
       retries: 10
 
   cds:
-    image: dr2.rbkmoney.com/rbkmoney/cds:c0661c4d5abb85f7728bd0e816760670aa248251
+    image: dr2.rbkmoney.com/rbkmoney/cds:6e6541c99d34b0633775f0c5304f5008e6b2aaf3
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
@@ -115,7 +115,7 @@ services:
         condition: service_healthy
 
   kds:
-    image: dr2.rbkmoney.com/rbkmoney/kds:2f62c8b8e6e32a7d76d7f1ef251bcda419eb9e1f
+    image: dr2.rbkmoney.com/rbkmoney/kds:e37c7bbc0e9dd485a9c5a094c3c6e631ef3af110
     command: /opt/kds/bin/kds foreground
     volumes:
       - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
@@ -134,7 +134,7 @@ services:
       - cds
 
   machinegun:
-    image: dr2.rbkmoney.com/rbkmoney/machinegun:0da2ffc23221e1e3f8557b03d48d11d2dd18fac0
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:9c3248a68fe530d23a8266057a40a1a339a161b8
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml
@@ -163,7 +163,7 @@ services:
       retries: 10
 
   party-management:
-    image: dr2.rbkmoney.com/rbkmoney/party-management:f161a8103bb85d003b4014ab7bd94744e7f506fa
+    image: dr2.rbkmoney.com/rbkmoney/party-management:f55197723b34e3be30b1e3dc0d57b948db8e2062
     command: /opt/party-management/bin/party-management foreground
     depends_on:
       - machinegun

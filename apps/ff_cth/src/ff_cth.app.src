@@ -15,6 +15,6 @@
     {maintainers, [
         "Andrey Mayorov <a.mayorov@rbkmoney.com>"
     ]},
-    {licenses, []},
+    {licenses, ["Apache 2.0"]},
     {links, ["https://github.com/rbkmoney/fistful-server"]}
 ]}.

@@ -16,7 +16,7 @@
     p2p_inspector := dmsl_domain_thrift:'P2PInspectorSelector'(),
     withdrawal_routing_rules := dmsl_domain_thrift:'RoutingRules'(),
     p2p_transfer_routing_rules := dmsl_domain_thrift:'RoutingRules'(),
-    payment_system := dmsl_domain_thrift:'PaymentSystemSelector'()
+    payment_system => dmsl_domain_thrift:'PaymentSystemSelector'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -79,16 +79,17 @@ get_selector_value(Name, Selector) ->
     end.
 
 -spec payment_system(payment_institution()) ->
-    {ok, ff_resource:payment_system()}
+    {ok, ff_resource:payment_system() | undefined}
     | {error, term()}.
-payment_system(PaymentInstitution) ->
-    PaymentSystem = maps:get(payment_system, PaymentInstitution, undefined),
+payment_system(#{payment_system := PaymentSystem}) ->
     case get_selector_value(payment_system, PaymentSystem) of
         {ok, #'domain_PaymentSystemRef'{id = ID}} ->
             {ok, #{id => ID}};
         {error, Error} ->
             {error, Error}
-    end.
+    end;
+payment_system(_PaymentInstitution) ->
+    {ok, undefined}.
 
 -spec withdrawal_providers(payment_institution()) ->
     {ok, [ff_payouts_provider:id()]}

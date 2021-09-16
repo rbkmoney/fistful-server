@@ -1381,13 +1381,13 @@ validate_withdrawal_currency(Body, Wallet, Destination) ->
 
 -spec validate_destination_status(destination()) ->
     {ok, valid}
-    | {error, {destinaiton, ff_destination:status()}}.
+    | {error, {destination, ff_destination:status()}}.
 validate_destination_status(Destination) ->
     case ff_destination:status(Destination) of
         authorized ->
             {ok, valid};
         unauthorized ->
-            {error, {destinaiton, unauthorized}}
+            {error, {destination, unauthorized}}
     end.
 
 %% Limit helpers

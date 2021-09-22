@@ -29,6 +29,33 @@ services:
       adapter-mocketbank:
         condition: service_healthy
 
+  fistful:
+    image: dr2.rbkmoney.com/rbkmoney/fistful-server:b7e55236a8d5833917f4df30607dc83abc872bbe
+    command: /opt/fistful-server/bin/fistful-server foreground
+    depends_on:
+      machinegun:
+        condition: service_healthy
+    volumes:
+      - ./test/fistful-server/sys.config:/opt/fistful/releases/0.1/sys.config
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 10
+    depends_on:
+      party-management:
+        condition: service_healthy
+      identification:
+        condition: service_healthy
+      cds:
+        condition: service_healthy
+      dominant:
+        condition: service_healthy
+      machinegun:
+        condition: service_healthy
+      adapter-mocketbank:
+        condition: service_healthy
+
   adapter-mocketbank:
     depends_on:
       - cds

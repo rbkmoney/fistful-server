@@ -1,0 +1,18 @@
+{application, swag_client_payres, [
+    {description, " Платформа предоставляет возможность токенизации исходных данных пользовательских платёжных ресурсов. Используя RBKmoney Payment Resource API вы можете для своего платёжного ресурса получить уникальный токен, который может быть использован для переводов. "},
+    {vsn, "1.0.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        hackney,
+        jsx,
+        jesse
+    ]},
+    {env, [
+    ]},
+    {modules, []},
+    {licenses, []},
+    {links, ["https://rbk.money"]}
+]}.
+

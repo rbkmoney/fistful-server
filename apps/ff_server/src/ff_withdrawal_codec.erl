@@ -424,4 +424,34 @@ marshal_session_result_test_() ->
         ?_assertEqual(Results, unmarshal({list, session_result}, ResultsThrift))
     ].
 
+-spec unmarshal_repair_scenario_test() -> _.
+unmarshal_repair_scenario_test() ->
+    Scenario = {
+        add_events,
+        #wthd_AddEventsRepair{
+            events = [
+                {status_changed, #wthd_StatusChange{
+                    status = {pending, #wthd_status_Pending{}}
+                }}
+            ],
+            action = #ff_repairer_ComplexAction{
+                timer =
+                    {set_timer, #ff_repairer_SetTimerAction{
+                        timer = {timeout, 0}
+                    }}
+            }
+        }
+    },
+    ?assertEqual(
+        unmarshal(repair_scenario, Scenario),
+        {add_events, #{
+            events => [
+                {status_changed, pending}
+            ],
+            action => [
+                {set_timer, {timeout, 0}}
+            ]
+        }}
+    ).
+
 -endif.

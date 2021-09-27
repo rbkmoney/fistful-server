@@ -2,7 +2,6 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_user_interaction_thrift.hrl").
--include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([marshal/2]).
@@ -280,11 +279,6 @@ marshal(client_info, ClientInfo) ->
     #domain_ClientInfo{
         ip_address = IPAddress,
         fingerprint = Fingerprint
-    };
-marshal(p2p_tool, {Sender, Receiver}) ->
-    #domain_P2PTool{
-        sender = marshal(payment_tool, Sender),
-        receiver = marshal(payment_tool, Receiver)
     };
 marshal(attempt_limit, Limit) ->
     #domain_AttemptLimit{

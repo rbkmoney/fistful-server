@@ -22,11 +22,6 @@
 -export([withdrawal_rejected_by_prohibitions_table_test/1]).
 -export([withdrawal_ruleset_misconfig_test/1]).
 -export([withdrawal_rules_not_found_test/1]).
--export([p2p_routes_found_test/1]).
--export([p2p_no_routes_found_test/1]).
--export([p2p_rejected_by_prohibitions_table_test/1]).
--export([p2p_ruleset_misconfig_test/1]).
--export([p2p_rules_not_found_test/1]).
 
 %% Internal types
 
@@ -53,12 +48,7 @@ groups() ->
             withdrawal_no_routes_found_test,
             withdrawal_rejected_by_prohibitions_table_test,
             withdrawal_ruleset_misconfig_test,
-            withdrawal_rules_not_found_test,
-            p2p_routes_found_test,
-            p2p_no_routes_found_test,
-            p2p_rejected_by_prohibitions_table_test,
-            p2p_ruleset_misconfig_test,
-            p2p_rules_not_found_test
+            withdrawal_rules_not_found_test
         ]}
     ].
 
@@ -168,76 +158,6 @@ withdrawal_rules_not_found_test(_C) ->
             #{rejected_routes := []}
         },
         gather_routes(withdrawal_routing_rules, PaymentInstitutionID, VS)
-    ).
-
--spec p2p_routes_found_test(config()) -> test_return().
-p2p_routes_found_test(_C) ->
-    VS = make_varset(?cash(999, <<"RUB">>), <<"12345">>),
-    PaymentInstitutionID = 1,
-    ?assertMatch(
-        {
-            [
-                #{terminal_ref := ?trm(101)},
-                #{terminal_ref := ?trm(102)}
-            ],
-            #{rejected_routes := []}
-        },
-        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
-    ).
-
--spec p2p_no_routes_found_test(config()) -> test_return().
-p2p_no_routes_found_test(_C) ->
-    VS = make_varset(?cash(1000, <<"RUB">>), <<"12345">>),
-    PaymentInstitutionID = 1,
-    ?assertMatch(
-        {
-            [],
-            #{rejected_routes := []}
-        },
-        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
-    ).
-
--spec p2p_rejected_by_prohibitions_table_test(config()) -> test_return().
-p2p_rejected_by_prohibitions_table_test(_C) ->
-    VS = make_varset(?cash(1000, <<"RUB">>), <<"67890">>),
-    PaymentInstitutionID = 1,
-    ?assertMatch(
-        {
-            [
-                #{terminal_ref := ?trm(103)},
-                #{terminal_ref := ?trm(105)}
-            ],
-            #{
-                rejected_routes := [
-                    {_, ?trm(104), {'RoutingRule', <<"Candidate description">>}}
-                ]
-            }
-        },
-        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
-    ).
-
--spec p2p_ruleset_misconfig_test(config()) -> test_return().
-p2p_ruleset_misconfig_test(_C) ->
-    VS = #{party_id => <<"12345">>},
-    PaymentInstitutionID = 1,
-    ?assertMatch(
-        {
-            [],
-            #{rejected_routes := []}
-        },
-        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
-    ).
-
--spec p2p_rules_not_found_test(config()) -> test_return().
-p2p_rules_not_found_test(_C) ->
-    VS = make_varset(?cash(1000, <<"RUB">>), <<"12345">>),
-    PaymentInstitutionID = 2,
-    ?assertMatch(
-        {
-            [],
-            #{rejected_routes := []}
-        },
-        gather_routes(p2p_transfer_routing_rules, PaymentInstitutionID, VS)
     ).
 
 %%

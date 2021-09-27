@@ -28,7 +28,6 @@
 
 -type data() ::
     aux_state()
-    | event()
     | call_args()
     | call_response().
 

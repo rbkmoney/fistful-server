@@ -7,10 +7,7 @@
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_p2p_session_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_p2p_template_thrift.hrl").
 
 -type sink() ::
     ff_services:service_name().
@@ -23,10 +20,7 @@
     | ff_proto_source_thrift:'SinkEvent'()
     | ff_proto_deposit_thrift:'SinkEvent'()
     | ff_proto_withdrawal_thrift:'SinkEvent'()
-    | ff_proto_p2p_transfer_thrift:'SinkEvent'()
-    | ff_proto_p2p_session_thrift:'SinkEvent'()
-    | ff_proto_w2w_transfer_thrift:'SinkEvent'()
-    | ff_proto_p2p_template_thrift:'SinkEvent'().
+    | ff_proto_w2w_transfer_thrift:'SinkEvent'().
 
 -type event_id() :: ff_proto_eventsink_thrift:'EventID'().
 -type limit() :: non_neg_integer().
@@ -86,10 +80,7 @@ get_event_id(#'dst_SinkEvent'{id = ID}) -> ID;
 get_event_id(#'src_SinkEvent'{id = ID}) -> ID;
 get_event_id(#'deposit_SinkEvent'{id = ID}) -> ID;
 get_event_id(#'wthd_session_SinkEvent'{id = ID}) -> ID;
-get_event_id(#'p2p_transfer_SinkEvent'{id = ID}) -> ID;
-get_event_id(#'p2p_session_SinkEvent'{id = ID}) -> ID;
-get_event_id(#'w2w_transfer_SinkEvent'{id = ID}) -> ID;
-get_event_id(#'p2p_template_SinkEvent'{id = ID}) -> ID.
+get_event_id(#'w2w_transfer_SinkEvent'{id = ID}) -> ID.
 
 call_handler(Function, ServiceName, Args) ->
     Service = ff_services:get_service(ServiceName),

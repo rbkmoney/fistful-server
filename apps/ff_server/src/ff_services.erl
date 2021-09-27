@@ -19,8 +19,6 @@ get_service(fistful_admin) ->
     {ff_proto_fistful_admin_thrift, 'FistfulAdmin'};
 get_service(fistful_provider) ->
     {ff_proto_provider_thrift, 'Management'};
-get_service(ff_p2p_adapter_host) ->
-    {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'};
 get_service(ff_withdrawal_adapter_host) ->
     {dmsl_withdrawals_provider_adapter_thrift, 'AdapterHost'};
 get_service(deposit_event_sink) ->
@@ -57,30 +55,12 @@ get_service(withdrawal_session_management) ->
     {ff_proto_withdrawal_session_thrift, 'Management'};
 get_service(deposit_management) ->
     {ff_proto_deposit_thrift, 'Management'};
-get_service(p2p_transfer_event_sink) ->
-    {ff_proto_p2p_transfer_thrift, 'EventSink'};
-get_service(p2p_transfer_management) ->
-    {ff_proto_p2p_transfer_thrift, 'Management'};
-get_service(p2p_transfer_repairer) ->
-    {ff_proto_p2p_transfer_thrift, 'Repairer'};
-get_service(p2p_session_event_sink) ->
-    {ff_proto_p2p_session_thrift, 'EventSink'};
-get_service(p2p_session_management) ->
-    {ff_proto_p2p_session_thrift, 'Management'};
-get_service(p2p_session_repairer) ->
-    {ff_proto_p2p_session_thrift, 'Repairer'};
 get_service(w2w_transfer_event_sink) ->
     {ff_proto_w2w_transfer_thrift, 'EventSink'};
 get_service(w2w_transfer_repairer) ->
     {ff_proto_w2w_transfer_thrift, 'Repairer'};
 get_service(w2w_transfer_management) ->
-    {ff_proto_w2w_transfer_thrift, 'Management'};
-get_service(p2p_template_event_sink) ->
-    {ff_proto_p2p_template_thrift, 'EventSink'};
-get_service(p2p_template_repairer) ->
-    {ff_proto_p2p_template_thrift, 'Repairer'};
-get_service(p2p_template_management) ->
-    {ff_proto_p2p_template_thrift, 'Management'}.
+    {ff_proto_w2w_transfer_thrift, 'Management'}.
 
 -spec get_service_spec(service_name()) -> service_spec().
 get_service_spec(Name) ->
@@ -91,8 +71,6 @@ get_service_path(fistful_admin) ->
     "/v1/admin";
 get_service_path(fistful_provider) ->
     "/v1/provider";
-get_service_path(ff_p2p_adapter_host) ->
-    "/v1/ff_p2p_adapter_host";
 get_service_path(ff_withdrawal_adapter_host) ->
     "/v1/ff_withdrawal_adapter_host";
 get_service_path(deposit_event_sink) ->
@@ -129,27 +107,9 @@ get_service_path(withdrawal_session_management) ->
     "/v1/withdrawal_session";
 get_service_path(deposit_management) ->
     "/v1/deposit";
-get_service_path(p2p_transfer_event_sink) ->
-    "/v1/eventsink/p2p_transfer";
-get_service_path(p2p_transfer_management) ->
-    "/v1/p2p_transfer";
-get_service_path(p2p_transfer_repairer) ->
-    "/v1/repair/p2p_transfer";
-get_service_path(p2p_session_event_sink) ->
-    "/v1/eventsink/p2p_transfer/session";
-get_service_path(p2p_session_management) ->
-    "/v1/p2p_transfer/session";
-get_service_path(p2p_session_repairer) ->
-    "/v1/repair/p2p_transfer/session";
 get_service_path(w2w_transfer_event_sink) ->
     "/v1/eventsink/w2w_transfer";
 get_service_path(w2w_transfer_repairer) ->
     "/v1/repair/w2w_transfer";
 get_service_path(w2w_transfer_management) ->
-    "/v1/w2w_transfer";
-get_service_path(p2p_template_event_sink) ->
-    "/v1/eventsink/p2p_template";
-get_service_path(p2p_template_repairer) ->
-    "/v1/repair/p2p_template";
-get_service_path(p2p_template_management) ->
-    "/v1/p2p_template".
+    "/v1/w2w_transfer".

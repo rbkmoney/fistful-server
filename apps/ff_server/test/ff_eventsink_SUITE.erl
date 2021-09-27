@@ -19,9 +19,7 @@
 -export([get_create_source_events_ok/1]).
 -export([get_create_deposit_events_ok/1]).
 -export([get_shifted_create_identity_events_ok/1]).
--export([get_create_p2p_transfer_events_ok/1]).
 -export([get_create_w2w_transfer_events_ok/1]).
--export([get_create_p2p_template_events_ok/1]).
 
 -type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -39,9 +37,7 @@ all() ->
         get_create_deposit_events_ok,
         get_withdrawal_session_events_ok,
         get_shifted_create_identity_events_ok,
-        get_create_p2p_transfer_events_ok,
-        get_create_w2w_transfer_events_ok,
-        get_create_p2p_template_events_ok
+        get_create_w2w_transfer_events_ok
     ].
 
 -spec groups() -> [].
@@ -269,76 +265,6 @@ get_shifted_create_identity_events_ok(C) ->
     MaxID = ct_eventsink:get_max_event_id(Events),
     MaxID = StartEventNum + 1.
 
--spec get_create_p2p_transfer_events_ok(config()) -> test_return().
-get_create_p2p_transfer_events_ok(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    IID = create_person_identity(Party, C),
-    Sink = p2p_transfer_event_sink,
-    LastEvent = ct_eventsink:last_id(Sink),
-
-    Token = genlib:unique(),
-
-    Resource =
-        {bank_card, #{
-            bank_card => #{
-                token => Token,
-                bin => <<"some bin">>,
-                masked_pan => <<"some masked_pan">>
-            }
-        }},
-
-    Participant =
-        {raw, #{
-            resource_params => Resource,
-            contact_info => #{}
-        }},
-
-    Cash = {123, <<"RUB">>},
-
-    CompactResource =
-        {bank_card, #{
-            token => Token,
-            bin_data_id => {binary, genlib:unique()}
-        }},
-
-    Quote = #{
-        fees => #{
-            fees => #{
-                surplus => {123, <<"RUB">>}
-            }
-        },
-        amount => Cash,
-        party_revision => 1,
-        domain_revision => 1,
-        created_at => ff_time:now(),
-        expires_on => ff_time:now(),
-        identity_id => ID,
-        sender => CompactResource,
-        receiver => CompactResource
-    },
-
-    ok = p2p_transfer_machine:create(
-        #{
-            id => ID,
-            identity_id => IID,
-            body => Cash,
-            sender => Participant,
-            receiver => Participant,
-            quote => Quote,
-            client_info => #{
-                ip_address => <<"some ip_address">>,
-                fingerprint => <<"some fingerprint">>
-            },
-            external_id => ID
-        },
-        ff_entity_context:new()
-    ),
-
-    {ok, RawEvents} = p2p_transfer_machine:events(ID, {undefined, 1000}),
-    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
-    MaxID = LastEvent + length(RawEvents).
-
 -spec get_create_w2w_transfer_events_ok(config()) -> test_return().
 get_create_w2w_transfer_events_ok(C) ->
     Sink = w2w_transfer_event_sink,
@@ -354,28 +280,6 @@ get_create_w2w_transfer_events_ok(C) ->
     ID = process_w2w(WalFromID, WalToID),
 
     {ok, RawEvents} = w2w_transfer_machine:events(ID, {undefined, 1000}),
-    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
-    MaxID = LastEvent + length(RawEvents).
-
--spec get_create_p2p_template_events_ok(config()) -> test_return().
-get_create_p2p_template_events_ok(C) ->
-    Sink = p2p_template_event_sink,
-    LastEvent = ct_eventsink:last_id(Sink),
-
-    Party = create_party(C),
-    IID = create_person_identity(Party, C),
-
-    Details = make_template_details({1000, <<"RUB">>}),
-    P2PTemplateID = generate_id(),
-    P2PTemplateParams = #{
-        id => P2PTemplateID,
-        identity_id => IID,
-        details => Details,
-        external_id => P2PTemplateID
-    },
-    ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
-
-    {ok, RawEvents} = p2p_template_machine:events(P2PTemplateID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 

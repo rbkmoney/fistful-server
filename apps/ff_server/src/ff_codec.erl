@@ -348,9 +348,12 @@ unmarshal(complex_action, #ff_repairer_ComplexAction{
     unmarshal(timer_action, TimerAction) ++ unmarshal(remove_action, RemoveAction);
 unmarshal(timer_action, undefined) ->
     [];
-unmarshal(timer_action, {set_timer, #ff_repairer_SetTimerAction{
-    timer = Timer
-}}) ->
+unmarshal(
+    timer_action,
+    {set_timer, #ff_repairer_SetTimerAction{
+        timer = Timer
+    }}
+) ->
     [{set_timer, unmarshal(set_timer_action, Timer)}];
 unmarshal(timer_action, {unset_timer, #ff_repairer_UnsetTimerAction{}}) ->
     [unset_timer];

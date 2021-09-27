@@ -44,7 +44,6 @@
     | {bad_w2w_transfer_amount, Cash :: cash()}
     | invalid_w2w_terms_error().
 
-
 -export_type([id/0]).
 -export_type([revision/0]).
 -export_type([terms/0]).

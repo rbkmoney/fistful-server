@@ -34,7 +34,6 @@
 -type object() ::
     dmsl_domain_thrift:'DomainObject'().
 
-
 -spec withdrawal_provider(?dtp('ProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) -> object().
 withdrawal_provider(?prv(16) = Ref, ProxyRef, IdentityID, C) ->
     AccountID = account(<<"RUB">>, C),

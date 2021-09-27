@@ -532,19 +532,3 @@ is_commited_ev({transfer, #wthd_TransferChange{payload = TransferEvent}}) ->
     end;
 is_commited_ev(_Other) ->
     false.
-
-make_template_details({Amount, Currency}) ->
-    make_template_details({Amount, Currency}, #{<<"test key">> => <<"test value">>}).
-
-make_template_details({Amount, Currency}, Metadata) ->
-    #{
-        body => #{
-            value => genlib_map:compact(#{
-                amount => Amount,
-                currency => Currency
-            })
-        },
-        metadata => #{
-            value => Metadata
-        }
-    }.

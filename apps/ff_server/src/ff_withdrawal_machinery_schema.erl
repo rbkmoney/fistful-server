@@ -19,7 +19,7 @@
 -type value(T) :: machinery_mg_schema:v(T).
 -type value_type() :: machinery_mg_schema:vt().
 
--type event() :: ff_machine:timestamped_event(p2p_transfer:event()).
+-type event() :: ff_machine:timestamped_event(ff_withdrawal:event()).
 -type aux_state() :: ff_machine:auxst().
 -type call_args() :: term().
 -type call_response() :: term().

@@ -562,9 +562,6 @@ use_quote_revisions_test(C) ->
 
 -spec force_status_change_test(config()) -> test_return().
 force_status_change_test(C) ->
-    Sink = withdrawal_event_sink,
-    LastEvent = ct_eventsink:last_id(Sink),
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5    
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -579,38 +576,37 @@ force_status_change_test(C) ->
         external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
-    timer:sleep(2000), 
-    Withdrawal = get_withdrawal(WithdrawalID),
-    ct:pal("WOLOLO> WIthadrawal=~p", [Withdrawal]),
-    {Events0, MaxID0} = ct_eventsink:events(LastEvent, 1000, Sink),
-    ct:pal("EvMaxID=~p", [MaxID0]),
-    ct:pal("Events=~p", [Events0]),
-
+    timer:sleep(2000),
+    Machine = ff_withdrawal_machine:get(WithdrawalID),
+    ct:pal("WOLOLO> Machine=~p", [Machine]),
     {ok, ok} =
-    call_withdrawal_repair(
-        WithdrawalID,
-        {add_events, #wthd_AddEventsRepair{
-            events = [
-                {status_changed, #wthd_StatusChange{
-                    status = {failed, #wthd_status_Failed{
-                        failure = #'Failure'{ 
-                            code = <<"Withdrawal failed by manual intervention">>
-                        }
+        call_withdrawal_repair(
+            WithdrawalID,
+            {add_events, #wthd_AddEventsRepair{
+                events = [
+                    {status_changed, #wthd_StatusChange{
+                        status =
+                            {failed, #wthd_status_Failed{
+                                failure = #'Failure'{
+                                    code = <<"Withdrawal failed by manual intervention">>
+                                }
+                            }}
                     }}
-                }}
-            ],
-            action = #ff_repairer_ComplexAction{
-                timer =
-                    {set_timer, #ff_repairer_SetTimerAction{
-                        timer = {timeout, 10000}
-                    }}
-            }
-        }}
-    ),
-    Withdrawal1 = get_withdrawal(WithdrawalID),
-    ct:pal("WOLOLO> WIthadrawal=~p", [Withdrawal1]),
-    ok.
+                ],
+                action = #ff_repairer_ComplexAction{
+                    timer =
+                        {set_timer, #ff_repairer_SetTimerAction{
+                            timer = {timeout, 10000}
+                        }}
+                }
+            }}
+        ),
+    ?assertMatch(
+        #{
+            status := {failed, #{code := <<"Withdrawal failed by manual intervention">>}}
+        },
+        get_withdrawal(WithdrawalID)
+    ).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->

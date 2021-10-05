@@ -67,8 +67,7 @@ do_setup(Options0, C0) ->
     ok = timer:sleep(5000),
     ok = configure_processing_apps(Options),
     ok = ct_helper:unset_context(),
-    Opts = [{payment_system, Processing0} | C1],
-    Opts.
+    [{payment_system, Processing0} | C1].
 
 start_processing_apps(Options) ->
     P2PAdapterAdr = <<"/p2p_adapter">>,
@@ -148,10 +147,19 @@ start_optional_apps(_) ->
     [].
 
 setup_dominant(Options, C) ->
-    GroupName = ct_helper:get_group_name(C),
+    GroupName = get_group_name(C),
     DomainConfig = domain_config(GroupName, Options, C),
     _ = ct_domain_config:upsert(DomainConfig),
     ok.
+
+get_group_name(C) ->
+    try ct_helper:get_group_name(C) of
+        GroupName ->
+            GroupName
+    catch
+        error:{'ct config entry missing', _Key} ->
+            undefined
+    end.
 
 configure_processing_apps(Options) ->
     ok = set_app_env(
@@ -381,7 +389,7 @@ domain_config(GroupName, Options, C) ->
 domain_config_special(withdrawal_repair, Options, _C) ->
     [
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
-        ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(withdrawal_repair_termset(Options))])
+        ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(withdrawal_misconfig_termset(Options))])
     ];
 domain_config_special(_GroupName, Options, _C) ->
     [
@@ -1388,7 +1396,7 @@ company_termset(Options) ->
     },
     option(company_termset, Options, Default).
 
-withdrawal_repair_termset(Options) ->
+withdrawal_misconfig_termset(Options) ->
     Default = #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
             currencies = {value, ?ordset([?cur(<<"RUB">>)])},
@@ -1418,47 +1426,11 @@ withdrawal_repair_termset(Options) ->
                                         {exclusive, ?cash(10000001, <<"RUB">>)}
                                     )}
                         }
-                    ]},
-                cash_flow =
-                    {decisions, [
-                        #domain_CashFlowDecision{
-                            if_ =
-                                {all_of,
-                                    ?ordset([
-                                        {condition, {currency_is, ?cur(<<"RUB">>)}},
-                                        {condition,
-                                            {payment_tool,
-                                                {bank_card, #domain_BankCardCondition{
-                                                    definition =
-                                                        {payment_system, #domain_PaymentSystemCondition{
-                                                            payment_system_is_deprecated = visa
-                                                        }}
-                                                }}}}
-                                    ])},
-                            then_ =
-                                {value, [
-                                    ?cfpost(
-                                        {wallet, sender_settlement},
-                                        {wallet, receiver_destination},
-                                        ?share(1, 1, operation_amount)
-                                    ),
-                                    ?cfpost(
-                                        {wallet, receiver_destination},
-                                        {system, settlement},
-                                        ?share(10, 100, operation_amount)
-                                    ),
-                                    ?cfpost(
-                                        {wallet, receiver_destination},
-                                        {system, subagent},
-                                        ?share(10, 100, operation_amount)
-                                    )
-                                ]}
-                        }
                     ]}
             }
         }
     },
-    option(withdrawal_repair_termset, Options, Default).
+    option(withdrawal_misconfig_termset, Options, Default).
 
 routing_ruleset(Ref, Name, Decisions) ->
     {routing_rules, #domain_RoutingRulesObject{

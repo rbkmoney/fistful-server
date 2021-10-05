@@ -579,21 +579,7 @@ force_status_change_test(C) ->
         external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    %?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
-    %?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
-    %Withdrawal = get_withdrawal(WithdrawalID),
-    %?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
-    %?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
-    %?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
-    %?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)),
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
-    
-    %?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
-    %?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
-    %?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
-    %?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
-    %?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
-    %?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)),
     timer:sleep(2000), 
     Withdrawal = get_withdrawal(WithdrawalID),
     ct:pal("WOLOLO> WIthadrawal=~p", [Withdrawal]),
@@ -601,8 +587,6 @@ force_status_change_test(C) ->
     ct:pal("EvMaxID=~p", [MaxID0]),
     ct:pal("Events=~p", [Events0]),
 
-    %WithdrawalMachine = ff_withdrawal_machine:get(WithdrawalID),
-    %io:format("Machine=~p", [WithdrawalMachine]),
     {ok, ok} =
     call_withdrawal_repair(
         WithdrawalID,
@@ -624,12 +608,6 @@ force_status_change_test(C) ->
             }
         }}
     ),
-%
-%    {Events1, MaxID1} = ct_eventsink:events(LastEvent, 1000, Sink),
-%    io:format("EvMaxID=~p", [MaxID1]),
-%    io:format("Events=~p", [Events1]),
-%
-%    ?assertEqual(failed, await_final_withdrawal_status(WithdrawalID)).
     Withdrawal1 = get_withdrawal(WithdrawalID),
     ct:pal("WOLOLO> WIthadrawal=~p", [Withdrawal1]),
     ok.
@@ -874,6 +852,7 @@ create_destination(IID, <<"USD_CURRENCY">>, C) ->
     create_destination(IID, <<"USD">>, undefined, C);
 create_destination(IID, Token, C) ->
     create_destination(IID, <<"RUB">>, Token, C).
+
 create_destination(IID, Currency, Token, C) ->
     ID = generate_id(),
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),

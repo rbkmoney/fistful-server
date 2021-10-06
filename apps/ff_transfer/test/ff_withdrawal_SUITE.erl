@@ -600,10 +600,8 @@ force_status_change_test(C) ->
             }}
         ),
     ?assertMatch(
-        #{
-            status := {failed, #{code := <<"Withdrawal failed by manual intervention">>}}
-        },
-        get_withdrawal(WithdrawalID)
+        {failed, #{code := <<"Withdrawal failed by manual intervention">>}},
+        get_withdrawal_status(WithdrawalID)
     ).
 
 -spec unknown_test(config()) -> test_return().

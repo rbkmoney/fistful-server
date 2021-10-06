@@ -576,9 +576,7 @@ force_status_change_test(C) ->
         external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    timer:sleep(2000),
-    Machine = ff_withdrawal_machine:get(WithdrawalID),
-    ct:pal("WOLOLO> Machine=~p", [Machine]),
+    timer:sleep(1000),
     {ok, ok} =
         call_withdrawal_repair(
             WithdrawalID,

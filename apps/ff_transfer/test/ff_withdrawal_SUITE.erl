@@ -127,7 +127,7 @@ end_per_suite(C) ->
 -spec init_per_group(group_name(), config()) -> config().
 init_per_group(withdrawal_repair, C) ->
     Termset = withdrawal_misconfig_termset_fixture(),
-    TermsetHierarchy = ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(Termset)]), 
+    TermsetHierarchy = ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(Termset)]),
     _ = ct_domain_config:update(TermsetHierarchy),
     C;
 init_per_group(_, C) ->

@@ -147,19 +147,9 @@ start_optional_apps(_) ->
     [].
 
 setup_dominant(Options, C) ->
-    GroupName = get_group_name(C),
-    DomainConfig = domain_config(GroupName, Options, C),
+    DomainConfig = domain_config(Options, C),
     _ = ct_domain_config:upsert(DomainConfig),
     ok.
-
-get_group_name(C) ->
-    try ct_helper:get_group_name(C) of
-        GroupName ->
-            GroupName
-    catch
-        error:{'ct config entry missing', _Key} ->
-            undefined
-    end.
 
 configure_processing_apps(Options) ->
     ok = set_app_env(
@@ -381,23 +371,7 @@ option(Option, Options, Default) ->
 
 -include_lib("ff_cth/include/ct_domain.hrl").
 
-domain_config(GroupName, Options, C) ->
-    DomainConfigDefault0 = domain_config_common(Options, C),
-    DomainConfigDefault1 = DomainConfigDefault0 ++ domain_config_special(GroupName, Options, C),
-    option(domain_config, Options, DomainConfigDefault1).
-
-domain_config_special(withdrawal_repair, Options, _C) ->
-    [
-        ct_domain:contract_template(?tmpl(1), ?trms(1)),
-        ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(withdrawal_misconfig_termset(Options))])
-    ];
-domain_config_special(_GroupName, Options, _C) ->
-    [
-        ct_domain:contract_template(?tmpl(1), ?trms(1)),
-        ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))])
-    ].
-
-domain_config_common(Options, C) ->
+domain_config(Options, C) ->
     P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
 
     WithdrawalDecision1 =
@@ -778,6 +752,8 @@ domain_config_common(Options, C) ->
 
         ct_domain:p2p_provider(?prv(101), ?prx(5), option(dummy_provider_identity_id, Options), C),
 
+        ct_domain:contract_template(?tmpl(1), ?trms(1)),
+        ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),
         ct_domain:contract_template(?tmpl(2), ?trms(2)),
         ct_domain:term_set_hierarchy(?trms(2), [ct_domain:timed_term_set(company_termset(Options))]),
 
@@ -1395,42 +1371,6 @@ company_termset(Options) ->
         }
     },
     option(company_termset, Options, Default).
-
-withdrawal_misconfig_termset(Options) ->
-    Default = #domain_TermSet{
-        wallets = #domain_WalletServiceTerms{
-            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-            wallet_limit =
-                {decisions, [
-                    #domain_CashLimitDecision{
-                        if_ = {condition, {bin_data, #domain_BinDataCondition{}}},
-                        then_ =
-                            {value,
-                                ?cashrng(
-                                    {inclusive, ?cash(0, <<"RUB">>)},
-                                    {exclusive, ?cash(5000001, <<"RUB">>)}
-                                )}
-                    }
-                ]},
-            withdrawals = #domain_WithdrawalServiceTerms{
-                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-                attempt_limit = {value, #domain_AttemptLimit{attempts = 3}},
-                cash_limit =
-                    {decisions, [
-                        #domain_CashLimitDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                            then_ =
-                                {value,
-                                    ?cashrng(
-                                        {inclusive, ?cash(0, <<"RUB">>)},
-                                        {exclusive, ?cash(10000001, <<"RUB">>)}
-                                    )}
-                        }
-                    ]}
-            }
-        }
-    },
-    option(withdrawal_misconfig_termset, Options, Default).
 
 routing_ruleset(Ref, Name, Decisions) ->
     {routing_rules, #domain_RoutingRulesObject{

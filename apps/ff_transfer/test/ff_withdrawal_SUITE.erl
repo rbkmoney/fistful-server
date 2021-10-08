@@ -1,6 +1,7 @@
 -module(ff_withdrawal_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
+-include_lib("ff_cth/include/ct_domain.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
@@ -109,34 +110,44 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    C.
-
--spec end_per_suite(config()) -> _.
-end_per_suite(_C) ->
-    ok.
-
-%%
-
--spec init_per_group(group_name(), config()) -> config().
-init_per_group(GroupName, C) ->
     ct_helper:makeup_cfg(
         [
             ct_helper:test_case_name(init),
-            ct_helper:group_name(GroupName),
             ct_payment_system:setup()
         ],
         C
     ).
 
--spec end_per_group(group_name(), config()) -> _.
-end_per_group(_, C) ->
+-spec end_per_suite(config()) -> _.
+end_per_suite(C) ->
     ok = ct_payment_system:shutdown(C).
+
+%%
+
+-spec init_per_group(group_name(), config()) -> config().
+init_per_group(withdrawal_repair, C) ->
+    Termset = withdrawal_misconfig_termset_fixture(),
+    TermsetHierarchy = ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(Termset)]), 
+    _ = ct_domain_config:update(TermsetHierarchy),
+    C;
+init_per_group(_, C) ->
+    C.
+
+-spec end_per_group(group_name(), config()) -> _.
+end_per_group(_, _) ->
+    ok.
 
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
-    C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
+    C1 = ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(Name),
+            ct_helper:woody_ctx()
+        ],
+        C
+    ),
     ok = ct_helper:set_context(C1),
     C1.
 
@@ -568,6 +579,7 @@ force_status_change_test(C) ->
         destination_id := DestinationID
     } = prepare_standard_environment(<<"good-one">>, Cash, C),
     WithdrawalID = generate_id(),
+    ct:pal("WOLOLO> WithdrawalID=~p", [WithdrawalID]),
     WithdrawalParams = #{
         id => WithdrawalID,
         destination_id => DestinationID,
@@ -964,3 +976,74 @@ call_withdrawal_repair(SessionID, Scenario) ->
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).
+
+withdrawal_misconfig_termset_fixture() ->
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            wallet_limit =
+                {decisions, [
+                    #domain_CashLimitDecision{
+                        if_ = {condition, {bin_data, #domain_BinDataCondition{}}},
+                        then_ =
+                            {value,
+                                ?cashrng(
+                                    {inclusive, ?cash(0, <<"RUB">>)},
+                                    {exclusive, ?cash(5000001, <<"RUB">>)}
+                                )}
+                    }
+                ]},
+            withdrawals = #domain_WithdrawalServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                attempt_limit = {value, #domain_AttemptLimit{attempts = 3}},
+                cash_limit =
+                    {decisions, [
+                        #domain_CashLimitDecision{
+                            if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                            then_ =
+                                {value,
+                                    ?cashrng(
+                                        {inclusive, ?cash(0, <<"RUB">>)},
+                                        {exclusive, ?cash(10000001, <<"RUB">>)}
+                                    )}
+                        }
+                    ]},
+                cash_flow =
+                    {decisions, [
+                        #domain_CashFlowDecision{
+                            if_ =
+                                {all_of,
+                                    ?ordset([
+                                        {condition, {currency_is, ?cur(<<"RUB">>)}},
+                                        {condition,
+                                            {payment_tool,
+                                                {bank_card, #domain_BankCardCondition{
+                                                    definition =
+                                                        {payment_system, #domain_PaymentSystemCondition{
+                                                            payment_system_is_deprecated = visa
+                                                        }}
+                                                }}}}
+                                    ])},
+                            then_ =
+                                {value, [
+                                    ?cfpost(
+                                        {wallet, sender_settlement},
+                                        {wallet, receiver_destination},
+                                        ?share(1, 1, operation_amount)
+                                    ),
+                                    ?cfpost(
+                                        {wallet, receiver_destination},
+                                        {system, settlement},
+                                        ?share(10, 100, operation_amount)
+                                    ),
+                                    ?cfpost(
+                                        {wallet, receiver_destination},
+                                        {system, subagent},
+                                        ?share(10, 100, operation_amount)
+                                    )
+                                ]}
+                        }
+                    ]}
+            }
+        }
+    }.

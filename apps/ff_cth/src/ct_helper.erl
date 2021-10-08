@@ -17,8 +17,6 @@
 -export([woody_ctx/0]).
 -export([get_woody_ctx/1]).
 
--export([group_name/1]).
--export([get_group_name/1]).
 -export([test_case_name/1]).
 -export([get_test_case_name/1]).
 
@@ -234,14 +232,6 @@ get_woody_ctx(C) ->
     cfg('$woody_ctx', C).
 
 %%
-
--spec group_name(group_name()) -> config_mut_fun().
-group_name(TestCaseName) ->
-    fun(C) -> cfg('$group_name', TestCaseName, C) end.
-
--spec get_group_name(config()) -> group_name().
-get_group_name(C) ->
-    cfg('$group_name', C).
 
 -spec test_case_name(test_case_name()) -> config_mut_fun().
 test_case_name(TestCaseName) ->

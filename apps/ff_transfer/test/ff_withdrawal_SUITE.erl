@@ -194,7 +194,7 @@ quote_fail_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -222,7 +222,7 @@ route_not_found_fail_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, <<"USD_COUNTRY">>, C),
+    } = prepare_standard_environment(Cash, <<"USD_COUNTRY">>, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -240,7 +240,7 @@ provider_operations_forbidden_fail_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -258,7 +258,7 @@ misconfigured_terminal_fail_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -276,7 +276,7 @@ limit_check_fail_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -303,7 +303,7 @@ create_cashlimit_validation_error_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -322,7 +322,7 @@ create_wallet_currency_validation_error_test(C) ->
     #{
         destination_id := DestinationID,
         identity_id := IdentityID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WalletID = create_wallet(IdentityID, <<"USD wallet">>, <<"USD">>, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
@@ -340,7 +340,7 @@ create_destination_currency_validation_error_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, <<"USD_CURRENCY">>, C),
+    } = prepare_standard_environment(Cash, <<"USD_CURRENCY">>, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -357,7 +357,7 @@ create_currency_validation_error_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -380,7 +380,7 @@ create_identity_providers_mismatch_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     Party = create_party(C),
     IdentityID = create_identity(Party, <<"good-two">>, <<"person">>, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, <<"RUB">>, C),
@@ -400,7 +400,7 @@ create_destination_resource_notfound_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, <<"TEST_NOTFOUND">>, C),
+    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND">>, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -416,7 +416,7 @@ create_destination_notfound_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -432,7 +432,7 @@ create_wallet_notfound_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -449,7 +449,7 @@ create_ok_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -473,7 +473,7 @@ quota_ok_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -517,7 +517,7 @@ preserve_revisions_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -539,7 +539,7 @@ use_quote_revisions_test(C) ->
         party_id := PartyID,
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     Time = ff_time:now(),
     DomainRevision = ff_domain_config:head(),
@@ -577,9 +577,8 @@ force_status_change_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
-    ct:pal("WOLOLO> WithdrawalID=~p", [WithdrawalID]),
     WithdrawalParams = #{
         id => WithdrawalID,
         destination_id => DestinationID,
@@ -629,7 +628,7 @@ provider_callback_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -666,7 +665,7 @@ session_repair_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, Cash, C),
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -702,7 +701,7 @@ provider_terminal_terms_merging_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-    } = prepare_standard_environment(<<"good-one">>, {601, <<"RUB">>}, C),
+    } = prepare_standard_environment({601, <<"RUB">>}, C),
     ProduceWithdrawal = fun(Cash) ->
         WithdrawalID = generate_id(),
         WithdrawalParams = #{
@@ -729,13 +728,12 @@ provider_terminal_terms_merging_test(C) ->
 
 %% Utils
 
-prepare_standard_environment(ProviderID, WithdrawalCash, C) ->
-    prepare_standard_environment(ProviderID, WithdrawalCash, undefined, C).
+prepare_standard_environment(WithdrawalCash, C) ->
+    prepare_standard_environment(WithdrawalCash, undefined, C).
 
-prepare_standard_environment(ProviderID, WithdrawalCash, Token, C) ->
-    {_Amount, Currency} = WithdrawalCash,
+prepare_standard_environment({_Amount, Currency} = WithdrawalCash, Token, C) ->
     Party = create_party(C),
-    IdentityID = create_person_identity(Party, C, ProviderID),
+    IdentityID = create_person_identity(Party, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
     ok = await_wallet_balance({0, Currency}, WalletID),
     DestinationID = create_destination(IdentityID, Token, C),
@@ -806,6 +804,9 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
+
+create_person_identity(Party, C) ->
+    create_person_identity(Party, C, <<"good-one">>).
 
 create_person_identity(Party, C, ProviderID) ->
     create_identity(Party, ProviderID, <<"person">>, C).

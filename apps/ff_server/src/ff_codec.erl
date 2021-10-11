@@ -348,22 +348,21 @@ unmarshal(complex_action, #ff_repairer_ComplexAction{
     unmarshal(timer_action, TimerAction) ++ unmarshal(remove_action, RemoveAction);
 unmarshal(timer_action, undefined) ->
     [];
-unmarshal(
-    timer_action,
-    {set_timer, #ff_repairer_SetTimerAction{
-        timer = Timer
-    }}
-) ->
-    [{set_timer, unmarshal(set_timer_action, Timer)}];
+unmarshal(timer_action, {set_timer, SetTimerAction}) ->
+    [{set_timer, unmarshal(set_timer_action, SetTimerAction)}];
 unmarshal(timer_action, {unset_timer, #ff_repairer_UnsetTimerAction{}}) ->
     [unset_timer];
 unmarshal(remove_action, undefined) ->
     [];
 unmarshal(remove_action, #ff_repairer_RemoveAction{}) ->
     [remove];
-unmarshal(set_timer_action, {timeout, Timeout}) ->
+unmarshal(set_timer_action, #ff_repairer_SetTimerAction{
+    timer = Timer
+}) ->
+    unmarshal(timer, Timer);
+unmarshal(timer, {timeout, Timeout}) ->
     {timeout, unmarshal(integer, Timeout)};
-unmarshal(set_timer_action, {deadline, Deadline}) ->
+unmarshal(timer, {deadline, Deadline}) ->
     {deadline, unmarshal(timestamp, Deadline)};
 unmarshal(account_change, {created, Account}) ->
     {created, unmarshal(account, Account)};

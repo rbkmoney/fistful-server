@@ -443,7 +443,6 @@ unmarshal_repair_scenario_test() ->
         }
     },
     ?assertEqual(
-        unmarshal(repair_scenario, Scenario),
         {add_events, #{
             events => [
                 {status_changed, pending}
@@ -451,7 +450,8 @@ unmarshal_repair_scenario_test() ->
             action => [
                 {set_timer, {timeout, 0}}
             ]
-        }}
+        }},
+        unmarshal(repair_scenario, Scenario)
     ).
 
 -endif.

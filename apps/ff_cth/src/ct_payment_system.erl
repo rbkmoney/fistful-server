@@ -175,10 +175,10 @@ configure_processing_apps(Options) ->
         <<"quote-owner">>
     ).
 
-create_crunch_identity(PayInstIID, PoviderIID, ProviderID) ->
+create_crunch_identity(PayInstIID, ProviderIID, ProviderID) ->
     PartyID = create_party(),
     PayInstIID = create_identity(PayInstIID, <<"ChurchPI">>, PartyID, ProviderID, <<"church">>),
-    PoviderIID = create_identity(PoviderIID, <<"ChurchPR">>, PartyID, ProviderID, <<"church">>),
+    ProviderIID = create_identity(ProviderIID, <<"ChurchPR">>, PartyID, ProviderID, <<"church">>),
     ok.
 
 create_company_account() ->

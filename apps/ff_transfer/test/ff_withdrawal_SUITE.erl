@@ -587,7 +587,8 @@ force_status_change_test(C) ->
         external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    timer:sleep(1000),
+    await_withdraval_transfer_created(WithdrawalID),
+    ?assertMatch(pending, get_withdrawal_status(WithdrawalID)),
     {ok, ok} =
         call_withdrawal_repair(
             WithdrawalID,
@@ -778,6 +779,34 @@ get_session_adapter_state(SessionID) ->
 get_session_id(WithdrawalID) ->
     Withdrawal = get_withdrawal(WithdrawalID),
     ff_withdrawal:session_id(Withdrawal).
+
+await_withdraval_transfer_created(WithdrawalID) ->
+    ct_helper:await(
+        transfer_created,
+        fun() ->
+            {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
+            case search_transfer_create_event(Events) of
+                false ->
+                    transfer_not_created;
+                {value, _} ->
+                    transfer_created
+            end
+        end,
+        genlib_retry:linear(20, 1000)
+    ).
+
+search_transfer_create_event(Events) ->
+    lists:search(
+        fun(T) ->
+            case T of
+                {_N, {ev, _Timestamp, {p_transfer, {status_changed, created}}}} ->
+                    true;
+                _Other ->
+                    false
+            end
+        end,
+        Events
+    ).
 
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(

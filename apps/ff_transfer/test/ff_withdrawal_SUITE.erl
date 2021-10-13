@@ -1,8 +1,10 @@
 -module(ff_withdrawal_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
+-include_lib("ff_cth/include/ct_domain.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
@@ -40,6 +42,7 @@
 -export([unknown_test/1]).
 -export([provider_callback_test/1]).
 -export([provider_terminal_terms_merging_test/1]).
+-export([force_status_change_test/1]).
 
 %% Internal types
 
@@ -99,6 +102,9 @@ groups() ->
         ]},
         {non_parallel, [sequence], [
             use_quote_revisions_test
+        ]},
+        {withdrawal_repair, [sequence], [
+            force_status_change_test
         ]}
     ].
 
@@ -119,6 +125,11 @@ end_per_suite(C) ->
 %%
 
 -spec init_per_group(group_name(), config()) -> config().
+init_per_group(withdrawal_repair, C) ->
+    Termset = withdrawal_misconfig_termset_fixture(),
+    TermsetHierarchy = ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(Termset)]),
+    _ = ct_domain_config:update(TermsetHierarchy),
+    C;
 init_per_group(_, C) ->
     C.
 
@@ -130,7 +141,13 @@ end_per_group(_, _) ->
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
-    C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
+    C1 = ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(Name),
+            ct_helper:woody_ctx()
+        ],
+        C
+    ),
     ok = ct_helper:set_context(C1),
     C1.
 
@@ -554,6 +571,51 @@ use_quote_revisions_test(C) ->
     ?assertEqual(PartyRevision, ff_withdrawal:party_revision(Withdrawal)),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
 
+-spec force_status_change_test(config()) -> test_return().
+force_status_change_test(C) ->
+    Cash = {100, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    await_withdraval_transfer_created(WithdrawalID),
+    ?assertMatch(pending, get_withdrawal_status(WithdrawalID)),
+    {ok, ok} =
+        call_withdrawal_repair(
+            WithdrawalID,
+            {add_events, #wthd_AddEventsRepair{
+                events = [
+                    {status_changed, #wthd_StatusChange{
+                        status =
+                            {failed, #wthd_status_Failed{
+                                failure = #'Failure'{
+                                    code = <<"Withdrawal failed by manual intervention">>
+                                }
+                            }}
+                    }}
+                ],
+                action = #ff_repairer_ComplexAction{
+                    timer =
+                        {set_timer, #ff_repairer_SetTimerAction{
+                            timer = {timeout, 10000}
+                        }}
+                }
+            }}
+        ),
+    ?assertMatch(
+        {failed, #{code := <<"Withdrawal failed by manual intervention">>}},
+        get_withdrawal_status(WithdrawalID)
+    ).
+
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
     WithdrawalID = <<"unknown_withdrawal">>,
@@ -717,6 +779,34 @@ get_session_adapter_state(SessionID) ->
 get_session_id(WithdrawalID) ->
     Withdrawal = get_withdrawal(WithdrawalID),
     ff_withdrawal:session_id(Withdrawal).
+
+await_withdraval_transfer_created(WithdrawalID) ->
+    ct_helper:await(
+        transfer_created,
+        fun() ->
+            {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
+            case search_transfer_create_event(Events) of
+                false ->
+                    transfer_not_created;
+                {value, _} ->
+                    transfer_created
+            end
+        end,
+        genlib_retry:linear(20, 1000)
+    ).
+
+search_transfer_create_event(Events) ->
+    lists:search(
+        fun(T) ->
+            case T of
+                {_N, {ev, _Timestamp, {p_transfer, {status_changed, created}}}} ->
+                    true;
+                _Other ->
+                    false
+            end
+        end,
+        Events
+    ).
 
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(
@@ -907,3 +997,83 @@ call_session_repair(SessionID, Scenario) ->
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).
+
+call_withdrawal_repair(SessionID, Scenario) ->
+    Service = {ff_proto_withdrawal_thrift, 'Repairer'},
+    Request = {Service, 'Repair', {SessionID, Scenario}},
+    Client = ff_woody_client:new(#{
+        url => <<"http://localhost:8022/v1/repair/withdrawal">>,
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).
+
+withdrawal_misconfig_termset_fixture() ->
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            wallet_limit =
+                {decisions, [
+                    #domain_CashLimitDecision{
+                        if_ = {condition, {bin_data, #domain_BinDataCondition{}}},
+                        then_ =
+                            {value,
+                                ?cashrng(
+                                    {inclusive, ?cash(0, <<"RUB">>)},
+                                    {exclusive, ?cash(5000001, <<"RUB">>)}
+                                )}
+                    }
+                ]},
+            withdrawals = #domain_WithdrawalServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                attempt_limit = {value, #domain_AttemptLimit{attempts = 3}},
+                cash_limit =
+                    {decisions, [
+                        #domain_CashLimitDecision{
+                            if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                            then_ =
+                                {value,
+                                    ?cashrng(
+                                        {inclusive, ?cash(0, <<"RUB">>)},
+                                        {exclusive, ?cash(10000001, <<"RUB">>)}
+                                    )}
+                        }
+                    ]},
+                cash_flow =
+                    {decisions, [
+                        #domain_CashFlowDecision{
+                            if_ =
+                                {all_of,
+                                    ?ordset([
+                                        {condition, {currency_is, ?cur(<<"RUB">>)}},
+                                        {condition,
+                                            {payment_tool,
+                                                {bank_card, #domain_BankCardCondition{
+                                                    definition =
+                                                        {payment_system, #domain_PaymentSystemCondition{
+                                                            payment_system_is_deprecated = visa
+                                                        }}
+                                                }}}}
+                                    ])},
+                            then_ =
+                                {value, [
+                                    ?cfpost(
+                                        {wallet, sender_settlement},
+                                        {wallet, receiver_destination},
+                                        ?share(1, 1, operation_amount)
+                                    ),
+                                    ?cfpost(
+                                        {wallet, receiver_destination},
+                                        {system, settlement},
+                                        ?share(10, 100, operation_amount)
+                                    ),
+                                    ?cfpost(
+                                        {wallet, receiver_destination},
+                                        {system, subagent},
+                                        ?share(10, 100, operation_amount)
+                                    )
+                                ]}
+                        }
+                    ]}
+            }
+        }
+    }.

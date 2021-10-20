@@ -12,10 +12,7 @@
     system_accounts := dmsl_domain_thrift:'SystemAccountSetSelector'(),
     identity := binary(),
     withdrawal_providers := dmsl_domain_thrift:'ProviderSelector'(),
-    p2p_providers := dmsl_domain_thrift:'ProviderSelector'(),
-    p2p_inspector := dmsl_domain_thrift:'P2PInspectorSelector'(),
     withdrawal_routing_rules := dmsl_domain_thrift:'RoutingRules'(),
-    p2p_transfer_routing_rules := dmsl_domain_thrift:'RoutingRules'(),
     payment_system => dmsl_domain_thrift:'PaymentSystemSelector'()
 }.
 
@@ -39,8 +36,6 @@
 -export([ref/1]).
 -export([get/3]).
 -export([withdrawal_providers/1]).
--export([p2p_transfer_providers/1]).
--export([p2p_inspector/1]).
 -export([system_accounts/2]).
 -export([payment_system/1]).
 
@@ -102,23 +97,6 @@ withdrawal_providers(#{withdrawal_providers := ProvidersSelector}) ->
             {error, Error}
     end.
 
--spec p2p_transfer_providers(payment_institution()) ->
-    {ok, [ff_payouts_provider:id()]}
-    | {error, term()}.
-p2p_transfer_providers(#{p2p_providers := ProvidersSelector}) ->
-    case get_selector_value(p2p_providers, ProvidersSelector) of
-        {ok, Providers} ->
-            {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};
-        {error, Error} ->
-            {error, Error}
-    end.
-
--spec p2p_inspector(payment_institution()) ->
-    {ok, p2p_inspector:inspector_ref()}
-    | {error, term()}.
-p2p_inspector(#{p2p_inspector := P2PInspectorSelector}) ->
-    get_selector_value(p2p_inspector, P2PInspectorSelector).
-
 -spec system_accounts(payment_institution(), domain_revision()) ->
     {ok, system_accounts()}
     | {error, term()}.
@@ -139,10 +117,7 @@ decode(ID, #domain_PaymentInstitution{
     wallet_system_account_set = SystemAccounts,
     identity = Identity,
     withdrawal_providers = WithdrawalProviders,
-    p2p_providers = P2PProviders,
-    p2p_inspector = P2PInspector,
     withdrawal_routing_rules = WithdrawalRoutingRules,
-    p2p_transfer_routing_rules = P2PTransferRoutingRules,
     payment_system = PaymentSystem
 }) ->
     genlib_map:compact(#{
@@ -150,10 +125,7 @@ decode(ID, #domain_PaymentInstitution{
         system_accounts => SystemAccounts,
         identity => Identity,
         withdrawal_providers => WithdrawalProviders,
-        p2p_providers => P2PProviders,
-        p2p_inspector => P2PInspector,
         withdrawal_routing_rules => WithdrawalRoutingRules,
-        p2p_transfer_routing_rules => P2PTransferRoutingRules,
         payment_system => PaymentSystem
     }).
 

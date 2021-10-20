@@ -15,7 +15,6 @@
         fistful_proto,
         fistful,
         ff_transfer,
-        p2p,
         w2w,
         thrift
     ]},

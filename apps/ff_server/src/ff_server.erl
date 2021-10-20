@@ -76,10 +76,7 @@ init([]) ->
         contruct_backend_childspec('ff/deposit_v1', ff_deposit_machine, PartyClient),
         contruct_backend_childspec('ff/withdrawal_v2', ff_withdrawal_machine, PartyClient),
         contruct_backend_childspec('ff/withdrawal/session_v2', ff_withdrawal_session_machine, PartyClient),
-        contruct_backend_childspec('ff/p2p_transfer_v1', p2p_transfer_machine, PartyClient),
-        contruct_backend_childspec('ff/p2p_transfer/session_v1', p2p_session_machine, PartyClient),
-        contruct_backend_childspec('ff/w2w_transfer_v1', w2w_transfer_machine, PartyClient),
-        contruct_backend_childspec('ff/p2p_template_v1', p2p_template_machine, PartyClient)
+        contruct_backend_childspec('ff/w2w_transfer_v1', w2w_transfer_machine, PartyClient)
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),
 
@@ -87,7 +84,6 @@ init([]) ->
         [
             {fistful_admin, ff_server_admin_handler},
             {fistful_provider, ff_provider_handler},
-            {ff_p2p_adapter_host, ff_p2p_adapter_host},
             {ff_withdrawal_adapter_host, ff_withdrawal_adapter_host},
             {wallet_management, ff_wallet_handler},
             {identity_management, ff_identity_handler},
@@ -99,11 +95,6 @@ init([]) ->
             {withdrawal_session_repairer, ff_withdrawal_session_repair},
             {withdrawal_repairer, ff_withdrawal_repair},
             {deposit_repairer, ff_deposit_repair},
-            {p2p_transfer_management, ff_p2p_transfer_handler},
-            {p2p_transfer_repairer, ff_p2p_transfer_repair},
-            {p2p_session_management, ff_p2p_session_handler},
-            {p2p_session_repairer, ff_p2p_session_repair},
-            {p2p_template_management, ff_p2p_template_handler},
             {w2w_transfer_management, ff_w2w_transfer_handler},
             {w2w_transfer_repairer, ff_w2w_transfer_repair}
         ] ++ get_eventsink_handlers(),
@@ -193,10 +184,7 @@ get_eventsink_handlers() ->
         {wallet, wallet_event_sink, ff_wallet_eventsink_publisher},
         {withdrawal, withdrawal_event_sink, ff_withdrawal_eventsink_publisher},
         {withdrawal_session, withdrawal_session_event_sink, ff_withdrawal_session_eventsink_publisher},
-        {p2p_transfer, p2p_transfer_event_sink, ff_p2p_transfer_eventsink_publisher},
-        {p2p_session, p2p_session_event_sink, ff_p2p_session_eventsink_publisher},
-        {w2w_transfer, w2w_transfer_event_sink, ff_w2w_transfer_eventsink_publisher},
-        {p2p_template, p2p_template_event_sink, ff_p2p_template_eventsink_publisher}
+        {w2w_transfer, w2w_transfer_event_sink, ff_w2w_transfer_eventsink_publisher}
     ],
     [get_eventsink_handler(Name, Service, Publisher, Cfg) || {Name, Service, Publisher} <- Publishers].
 
@@ -231,14 +219,8 @@ get_namespace_schema('ff/withdrawal_v2') ->
     ff_withdrawal_machinery_schema;
 get_namespace_schema('ff/withdrawal/session_v2') ->
     ff_withdrawal_session_machinery_schema;
-get_namespace_schema('ff/p2p_transfer_v1') ->
-    ff_p2p_transfer_machinery_schema;
-get_namespace_schema('ff/p2p_transfer/session_v1') ->
-    ff_p2p_session_machinery_schema;
 get_namespace_schema('ff/w2w_transfer_v1') ->
-    ff_w2w_transfer_machinery_schema;
-get_namespace_schema('ff/p2p_template_v1') ->
-    ff_p2p_template_machinery_schema.
+    ff_w2w_transfer_machinery_schema.
 
 wrap_handler(Handler, WrapperOpts) ->
     FullOpts = maps:merge(#{handler => Handler}, WrapperOpts),

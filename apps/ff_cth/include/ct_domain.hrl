@@ -20,7 +20,6 @@
 -define(sas(ID), #domain_SystemAccountSetRef{id = ID}).
 -define(eas(ID), #domain_ExternalAccountSetRef{id = ID}).
 -define(insp(ID), #domain_InspectorRef{id = ID}).
--define(p2p_insp(ID), #domain_P2PInspectorRef{id = ID}).
 -define(payinst(ID), #domain_PaymentInstitutionRef{id = ID}).
 -define(ruleset(ID), #domain_RoutingRulesetRef{id = ID}).
 

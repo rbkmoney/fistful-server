@@ -127,26 +127,10 @@ start_app(ff_server = AppName) ->
                 withdrawal_session => #{
                     namespace => 'ff/withdrawal/session_v2'
                 },
-                p2p_transfer => #{
-                    namespace => 'ff/p2p_transfer_v1'
-                },
-                p2p_session => #{
-                    namespace => 'ff/p2p_transfer/session_v1'
-                },
                 w2w_transfer => #{
                     namespace => 'ff/w2w_transfer_v1'
-                },
-                p2p_template => #{
-                    namespace => 'ff/p2p_template_v1'
                 }
             }}
-        ]),
-        #{}
-    };
-start_app(p2p = AppName) ->
-    {
-        start_app_with(AppName, [
-            {score_id, <<"fraud">>}
         ]),
         #{}
     };

@@ -19,7 +19,6 @@
     payout_method => dmsl_domain_thrift:'PayoutMethodRef'(),
     wallet_id => dmsl_domain_thrift:'WalletID'(),
     identification_level => dmsl_domain_thrift:'ContractorIdentificationLevel'(),
-    p2p_tool => dmsl_domain_thrift:'P2PTool'(),
     bin_data => dmsl_domain_thrift:'BinData'()
 }.
 
@@ -32,7 +31,6 @@ encode(Varset) ->
         currency = genlib_map:get(currency, Varset),
         amount = genlib_map:get(cost, Varset),
         wallet_id = genlib_map:get(wallet_id, Varset),
-        p2p_tool = genlib_map:get(p2p_tool, Varset),
         payment_tool = PaymentTool,
         payment_method = encode_payment_method(PaymentTool),
         identification_level = genlib_map:get(identification_level, Varset),

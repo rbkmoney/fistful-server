@@ -3,7 +3,6 @@
 %% Storage schema behaviour
 -behaviour(machinery_mg_schema).
 
--include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
 -export([get_version/1]).
@@ -20,7 +19,7 @@
 -type value(T) :: machinery_mg_schema:v(T).
 -type value_type() :: machinery_mg_schema:vt().
 
--type event() :: ff_machine:timestamped_event(p2p_transfer:event()).
+-type event() :: ff_machine:timestamped_event(ff_withdrawal:event()).
 -type aux_state() :: ff_machine:auxst().
 -type call_args() :: term().
 -type call_response() :: term().

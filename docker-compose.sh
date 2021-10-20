@@ -42,7 +42,6 @@ services:
         --server.port=8022
         --cds.client.storage.url=http://cds:8022/v2/storage
         --cds.client.identity-document-storage.url=http://cds:8022/v1/identity_document_storage
-        --fistful.client.adapter.url=http://fisful-server:8022/v1/ff_p2p_adapter_host
 
     working_dir: /opt/proxy-mocketbank
     healthcheck:

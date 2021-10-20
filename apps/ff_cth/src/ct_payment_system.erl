@@ -70,18 +70,15 @@ do_setup(Options0, C0) ->
     [{payment_system, Processing0} | C1].
 
 start_processing_apps(Options) ->
-    P2PAdapterAdr = <<"/p2p_adapter">>,
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         scoper,
         woody,
         dmt_client,
         {fistful, [
             {services, services(Options)},
-            {providers, identity_provider_config(Options)},
-            {test, #{p2p_adapter_adr => P2PAdapterAdr}}
+            {providers, identity_provider_config(Options)}
         ]},
-        ff_server,
-        p2p
+        ff_server
     ]),
     SuiteSup = ct_sup:start(),
     {ok, _} = supervisor:start_child(
@@ -116,14 +113,6 @@ start_processing_apps(Options) ->
                             {dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
                             {ff_ct_provider_handler, [{handler, ff_ct_sleepy_provider}]}
                         }
-                    },
-                    {
-                        P2PAdapterAdr,
-                        {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
-                    },
-                    {
-                        <<"/p2p_inspector">>,
-                        {{dmsl_proxy_inspector_p2p_thrift, 'InspectorProxy'}, {p2p_ct_inspector_handler, []}}
                     },
                     {
                         <<"/binbase">>,
@@ -347,7 +336,6 @@ identity_provider_config(Options) ->
 
 services(Options) ->
     Default = #{
-        ff_p2p_adapter_host => "http://fistful-server:8022/v1/ff_p2p_adapter_host",
         ff_withdrawal_adapter_host => "http://fistful-server:8022/v1/ff_withdrawal_adapter_host",
         eventsink => "http://machinegun:8022/v1/event_sink",
         automaton => "http://machinegun:8022/v1/automaton",
@@ -378,8 +366,6 @@ dummy_provider_identity_id(Options) ->
     maps:get(dummy_provider_identity_id, Options).
 
 domain_config(Options, C) ->
-    P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
-
     WithdrawalDecision1 =
         {delegates, [
             delegate(condition(party, <<"12345">>), ?ruleset(2)),
@@ -405,31 +391,6 @@ domain_config(Options, C) ->
             candidate({constant, true}, ?trm(4))
         ]},
 
-    P2PDecision1 =
-        {delegates, [
-            delegate(condition(party, <<"12345">>), ?ruleset(102)),
-            delegate(condition(party, <<"67890">>), ?ruleset(104))
-        ]},
-    P2PDecision2 =
-        {delegates, [
-            delegate(condition(cost_in, {0, 1000, <<"RUB">>}), ?ruleset(103))
-        ]},
-    P2PDecision3 =
-        {candidates, [
-            candidate({constant, true}, ?trm(101)),
-            candidate({constant, true}, ?trm(102))
-        ]},
-    P2PDecision4 =
-        {candidates, [
-            candidate({constant, true}, ?trm(103)),
-            candidate({constant, true}, ?trm(104)),
-            candidate({constant, true}, ?trm(105))
-        ]},
-    P2PDecision5 =
-        {candidates, [
-            candidate({constant, true}, ?trm(104))
-        ]},
-
     Default = [
         ct_domain:globals(?eas(1), [?payinst(1)]),
         ct_domain:external_account_set(?eas(1), <<"Default">>, ?cur(<<"RUB">>), C),
@@ -439,12 +400,6 @@ domain_config(Options, C) ->
         routing_ruleset(?ruleset(3), <<"WithdrawalRuleset#3">>, WithdrawalDecision3),
         routing_ruleset(?ruleset(4), <<"WithdrawalRuleset#4">>, WithdrawalDecision4),
         routing_ruleset(?ruleset(5), <<"WithdrawalRuleset#5">>, WithdrawalDecision5),
-
-        routing_ruleset(?ruleset(101), <<"P2PRuleset#1">>, P2PDecision1),
-        routing_ruleset(?ruleset(102), <<"P2PRuleset#2">>, P2PDecision2),
-        routing_ruleset(?ruleset(103), <<"P2PRuleset#3">>, P2PDecision3),
-        routing_ruleset(?ruleset(104), <<"P2PRuleset#4">>, P2PDecision4),
-        routing_ruleset(?ruleset(105), <<"P2PRuleset#5">>, P2PDecision5),
 
         {payment_institution, #domain_PaymentInstitutionObject{
             ref = ?payinst(1),
@@ -456,10 +411,6 @@ domain_config(Options, C) ->
                 withdrawal_routing_rules = #domain_RoutingRules{
                     policies = ?ruleset(1),
                     prohibitions = ?ruleset(5)
-                },
-                p2p_transfer_routing_rules = #domain_RoutingRules{
-                    policies = ?ruleset(101),
-                    prohibitions = ?ruleset(105)
                 },
                 inspector = {value, ?insp(1)},
                 residences = ['rus'],
@@ -671,29 +622,6 @@ domain_config(Options, C) ->
                             then_ = {value, [?prv(3)]}
                         }
                     ]},
-                p2p_inspector = {value, ?p2p_insp(1)},
-                p2p_providers =
-                    {decisions, [
-                        #domain_ProviderDecision{
-                            if_ =
-                                {condition,
-                                    {p2p_tool, #domain_P2PToolCondition{
-                                        sender_is =
-                                            {bank_card, #domain_BankCardCondition{
-                                                definition = {issuer_country_is, 'rus'}
-                                            }},
-                                        receiver_is =
-                                            {bank_card, #domain_BankCardCondition{
-                                                definition = {issuer_country_is, 'rus'}
-                                            }}
-                                    }}},
-                            then_ = {value, [?prv(101)]}
-                        },
-                        #domain_ProviderDecision{
-                            if_ = {constant, true},
-                            then_ = {value, []}
-                        }
-                    ]},
                 payment_system =
                     {decisions, [
                         #domain_PaymentSystemDecision{
@@ -732,12 +660,9 @@ domain_config(Options, C) ->
         ct_domain:system_account_set(?sas(1), <<"System">>, ?cur(<<"RUB">>), C),
 
         ct_domain:inspector(?insp(1), <<"Low Life">>, ?prx(1), #{<<"risk_score">> => <<"low">>}),
-        ct_domain:p2p_inspector(?p2p_insp(1), <<"Low Life">>, ?prx(4), #{<<"risk_score">> => <<"low">>}),
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
         ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
-        ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
-        ct_domain:proxy(?prx(5), <<"P2P adapter">>, <<"http://localhost:8222", P2PAdapterAdr/binary>>),
         ct_domain:proxy(?prx(6), <<"Down proxy">>, <<"http://localhost:8222/downbank">>),
         ct_domain:proxy(?prx(7), <<"Another down proxy">>, <<"http://localhost:8222/downbank2">>),
         ct_domain:proxy(?prx(8), <<"Sleep proxy">>, <<"http://localhost:8222/sleepybank">>),
@@ -756,8 +681,6 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?prv(16), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(17), ?prx(2), provider_identity_id(Options), C),
 
-        ct_domain:p2p_provider(?prv(101), ?prx(5), dummy_provider_identity_id(Options), C),
-
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),
         ct_domain:contract_template(?tmpl(2), ?trms(2)),
@@ -772,12 +695,6 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_terminal(?trm(7)),
         % Provider 17 satellite
         ct_domain:withdrawal_terminal(?trm(8)),
-
-        ct_domain:p2p_terminal(?trm(101)),
-        ct_domain:p2p_terminal(?trm(102)),
-        ct_domain:p2p_terminal(?trm(103)),
-        ct_domain:p2p_terminal(?trm(104)),
-        ct_domain:p2p_terminal(?trm(105)),
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),
@@ -1016,240 +933,6 @@ default_termset(Options) ->
                                 ]}
                         }
                     ]}
-            },
-            p2p = #domain_P2PServiceTerms{
-                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
-                allow =
-                    {any_of,
-                        ordsets:from_list([
-                            {condition,
-                                {p2p_tool, #domain_P2PToolCondition{
-                                    sender_is =
-                                        {bank_card, #domain_BankCardCondition{
-                                            definition =
-                                                {payment_system, #domain_PaymentSystemCondition{
-                                                    payment_system_is_deprecated = visa
-                                                }}
-                                        }},
-                                    receiver_is =
-                                        {bank_card, #domain_BankCardCondition{
-                                            definition =
-                                                {payment_system, #domain_PaymentSystemCondition{
-                                                    payment_system_is_deprecated = visa
-                                                }}
-                                        }}
-                                }}}
-                        ])},
-                cash_limit =
-                    {decisions, [
-                        #domain_CashLimitDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                            then_ =
-                                {value,
-                                    ?cashrng(
-                                        {inclusive, ?cash(0, <<"RUB">>)},
-                                        {exclusive, ?cash(10000001, <<"RUB">>)}
-                                    )}
-                        },
-                        #domain_CashLimitDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                            then_ =
-                                {value,
-                                    ?cashrng(
-                                        {inclusive, ?cash(0, <<"EUR">>)},
-                                        {exclusive, ?cash(10000001, <<"EUR">>)}
-                                    )}
-                        },
-                        #domain_CashLimitDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
-                            then_ =
-                                {value,
-                                    ?cashrng(
-                                        {inclusive, ?cash(0, <<"USD">>)},
-                                        {exclusive, ?cash(10000001, <<"USD">>)}
-                                    )}
-                        }
-                    ]},
-                cash_flow =
-                    {decisions, [
-                        #domain_CashFlowDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                            then_ =
-                                {value, [
-                                    ?cfpost(
-                                        {system, settlement},
-                                        {system, subagent},
-                                        ?share(10, 100, operation_amount)
-                                    )
-                                ]}
-                        },
-                        #domain_CashFlowDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
-                            then_ =
-                                {value, [
-                                    ?cfpost(
-                                        {system, settlement},
-                                        {system, subagent},
-                                        ?share(10, 100, operation_amount)
-                                    )
-                                ]}
-                        },
-                        #domain_CashFlowDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                            then_ =
-                                {value, [
-                                    ?cfpost(
-                                        {system, settlement},
-                                        {system, subagent},
-                                        ?share(10, 100, operation_amount)
-                                    )
-                                ]}
-                        }
-                    ]},
-                fees =
-                    {decisions, [
-                        #domain_FeeDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                            then_ =
-                                {decisions, [
-                                    #domain_FeeDecision{
-                                        if_ =
-                                            {condition,
-                                                {p2p_tool, #domain_P2PToolCondition{
-                                                    sender_is =
-                                                        {bank_card, #domain_BankCardCondition{
-                                                            definition =
-                                                                {payment_system, #domain_PaymentSystemCondition{
-                                                                    payment_system_is_deprecated = visa
-                                                                }}
-                                                        }},
-                                                    receiver_is =
-                                                        {bank_card, #domain_BankCardCondition{
-                                                            definition =
-                                                                {payment_system, #domain_PaymentSystemCondition{
-                                                                    payment_system_is_deprecated = visa
-                                                                }}
-                                                        }}
-                                                }}},
-                                        then_ =
-                                            {decisions, [
-                                                #domain_FeeDecision{
-                                                    if_ =
-                                                        {condition,
-                                                            {cost_in,
-                                                                ?cashrng(
-                                                                    {inclusive, ?cash(0, <<"RUB">>)},
-                                                                    {exclusive, ?cash(7692, <<"RUB">>)}
-                                                                )}},
-                                                    then_ =
-                                                        {value, #domain_Fees{
-                                                            fees = #{surplus => ?fixed(50, <<"RUB">>)}
-                                                        }}
-                                                },
-                                                #domain_FeeDecision{
-                                                    if_ =
-                                                        {condition,
-                                                            {cost_in,
-                                                                ?cashrng(
-                                                                    {inclusive, ?cash(7692, <<"RUB">>)},
-                                                                    {exclusive, ?cash(300000, <<"RUB">>)}
-                                                                )}},
-                                                    then_ =
-                                                        {value, #domain_Fees{
-                                                            fees = #{surplus => ?share(65, 10000, operation_amount)}
-                                                        }}
-                                                },
-                                                #domain_FeeDecision{
-                                                    if_ =
-                                                        {condition,
-                                                            {cost_in,
-                                                                ?cashrng(
-                                                                    {inclusive, ?cash(300000, <<"RUB">>)},
-                                                                    {exclusive, ?cash(20000001, <<"RUB">>)}
-                                                                )}},
-                                                    then_ =
-                                                        {value, #domain_Fees{
-                                                            fees = #{surplus => ?fixed(50, <<"RUB">>)}
-                                                        }}
-                                                }
-                                            ]}
-                                    },
-                                    #domain_FeeDecision{
-                                        if_ =
-                                            {condition,
-                                                {p2p_tool, #domain_P2PToolCondition{
-                                                    sender_is =
-                                                        {bank_card, #domain_BankCardCondition{
-                                                            definition =
-                                                                {payment_system, #domain_PaymentSystemCondition{
-                                                                    payment_system_is_deprecated = visa
-                                                                }}
-                                                        }},
-                                                    receiver_is =
-                                                        {bank_card, #domain_BankCardCondition{
-                                                            definition =
-                                                                {payment_system, #domain_PaymentSystemCondition{
-                                                                    payment_system_is_deprecated = nspkmir
-                                                                }}
-                                                        }}
-                                                }}},
-                                        then_ =
-                                            {decisions, [
-                                                #domain_FeeDecision{
-                                                    if_ =
-                                                        {condition,
-                                                            {cost_in,
-                                                                ?cashrng(
-                                                                    {inclusive, ?cash(0, <<"RUB">>)},
-                                                                    {exclusive, ?cash(7692, <<"RUB">>)}
-                                                                )}},
-                                                    then_ =
-                                                        {value, #domain_Fees{
-                                                            fees = #{surplus => ?fixed(50, <<"RUB">>)}
-                                                        }}
-                                                },
-                                                #domain_FeeDecision{
-                                                    if_ =
-                                                        {condition,
-                                                            {cost_in,
-                                                                ?cashrng(
-                                                                    {inclusive, ?cash(7692, <<"RUB">>)},
-                                                                    {exclusive, ?cash(300000, <<"RUB">>)}
-                                                                )}},
-                                                    then_ =
-                                                        {value, #domain_Fees{
-                                                            fees = #{surplus => ?share(65, 10000, operation_amount)}
-                                                        }}
-                                                }
-                                            ]}
-                                    }
-                                ]}
-                        },
-                        #domain_FeeDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
-                            then_ =
-                                {value, #domain_Fees{
-                                    fees = #{surplus => ?share(1, 1, operation_amount)}
-                                }}
-                        },
-                        #domain_FeeDecision{
-                            if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                            then_ =
-                                {value, #domain_Fees{
-                                    fees = #{surplus => ?share(1, 1, operation_amount)}
-                                }}
-                        }
-                    ]},
-                quote_lifetime =
-                    {value,
-                        {interval, #domain_LifetimeInterval{
-                            days = 1,
-                            minutes = 1,
-                            seconds = 1
-                        }}},
-                templates = #domain_P2PTemplateServiceTerms{
-                    allow = {condition, {currency_is, ?cur(<<"RUB">>)}}
-                }
             },
             w2w = #domain_W2WServiceTerms{
                 currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},

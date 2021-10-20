@@ -136,7 +136,8 @@ start_optional_apps(_) ->
     [].
 
 setup_dominant(Options, C) ->
-    _ = ct_domain_config:upsert(domain_config(Options, C)),
+    DomainConfig = domain_config(Options, C),
+    _ = ct_domain_config:upsert(DomainConfig),
     ok.
 
 configure_processing_apps(Options) ->
@@ -152,33 +153,31 @@ configure_processing_apps(Options) ->
         [ff_transfer, withdrawal, provider, <<"mocketbank">>, accounts, <<"RUB">>],
         create_company_account()
     ),
-    ok = create_crunch_identity(Options),
-    PIIID = dummy_payment_inst_identity_id(Options),
-    PRIID = dummy_provider_identity_id(Options),
-    ok = create_crunch_identity(PIIID, PRIID, <<"quote-owner">>).
+    ok = create_crunch_identity(
+        payment_inst_identity_id(Options),
+        provider_identity_id(Options),
+        <<"good-one">>
+    ),
+    ok = create_crunch_identity(
+        dummy_payment_inst_identity_id(Options),
+        dummy_provider_identity_id(Options),
+        <<"quote-owner">>
+    ).
 
-create_crunch_identity(Options) ->
-    PaymentInstIdentityID = payment_inst_identity_id(Options),
-    ProviderIdentityID = provider_identity_id(Options),
-    create_crunch_identity(PaymentInstIdentityID, ProviderIdentityID, <<"good-one">>).
-
-create_crunch_identity(PIIID, PRIID, ProviderID) ->
+create_crunch_identity(PayInstIID, ProviderIID, ProviderID) ->
     PartyID = create_party(),
-    PIIID = create_identity(PIIID, <<"ChurchPI">>, PartyID, ProviderID, <<"church">>),
-    PRIID = create_identity(PRIID, <<"ChurchPR">>, PartyID, ProviderID, <<"church">>),
+    PayInstIID = create_identity(PayInstIID, <<"ChurchPI">>, PartyID, ProviderID, <<"church">>),
+    ProviderIID = create_identity(ProviderIID, <<"ChurchPR">>, PartyID, ProviderID, <<"church">>),
     ok.
 
 create_company_account() ->
     PartyID = create_party(),
-    IdentityID = create_company_identity(PartyID),
+    IdentityID = create_company_identity(PartyID, <<"good-one">>),
     {ok, Currency} = ff_currency:get(<<"RUB">>),
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     Identity = ff_identity_machine:identity(IdentityMachine),
     {ok, [{created, Account}]} = ff_account:create(PartyID, Identity, Currency),
     Account.
-
-create_company_identity(PartyID) ->
-    create_company_identity(PartyID, <<"good-one">>).
 
 create_company_identity(PartyID, ProviderID) ->
     create_identity(PartyID, ProviderID, <<"church">>).

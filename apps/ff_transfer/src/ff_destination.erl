@@ -22,7 +22,7 @@
 
 -type exp_date() :: {integer(), integer()}.
 
--define(ACTUAL_FORMAT_VERSION, 4).
+-define(ACTUAL_FORMAT_VERSION, 5).
 
 -type destination() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
@@ -222,6 +222,15 @@ apply_event({account, Ev}, Destination) ->
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) -> event().
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
+maybe_migrate({created, Destination = #{version := 4, resource := Resource}}, MigrateParams) ->
+    maybe_migrate(
+        {created,
+            genlib_map:compact(Destination#{
+                version => 5,
+                resource => maybe_migrate_payment_system(Resource)
+            })},
+        MigrateParams
+    );
 maybe_migrate({created, Destination = #{version := 3, name := Name}}, MigrateParams) ->
     maybe_migrate(
         {created, Destination#{
@@ -283,8 +292,44 @@ maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
 maybe_migrate_resource(Resource) ->
     Resource.
 
+maybe_migrate_payment_system({bank_card, #{bank_card := BankCard}}) ->
+    PaymentSystem = get_payment_system(BankCard),
+    PaymentSystemDeprecated = get_payment_system_deprecated(BankCard),
+    {bank_card, #{
+        bank_card => BankCard#{
+            payment_system_deprecated => PaymentSystemDeprecated,
+            payment_system => PaymentSystem
+        }
+    }};
+maybe_migrate_payment_system(Resource) ->
+    Resource.
+
 maybe_migrate_name(Name) ->
     re:replace(Name, "\\d{12,19}", <<"">>, [global, {return, binary}]).
+
+get_payment_system_deprecated(BankCard) ->
+    case maps:get(payment_system_deprecated, BankCard, undefined) of
+        undefined ->
+            %% New field undefined, may be this is old data,
+            %% should check payment_system
+            case maps:get(payment_system, BankCard, undefined) of
+                PS when is_atom(PS) ->
+                    PS;
+                _ ->
+                    undefined
+            end;
+        PS ->
+            PS
+    end.
+
+get_payment_system(BankCard) ->
+    case maps:get(payment_system, BankCard, undefined) of
+        P = #{id := _} ->
+            P;
+        _ ->
+            %% Old data, skip value
+            undefined
+    end.
 
 %% Tests
 
@@ -308,7 +353,7 @@ v1_created_migration_test() ->
     {created, #{version := Version}} = maybe_migrate(LegacyEvent, #{
         timestamp => ff_codec:unmarshal(timestamp, ff_codec:marshal(timestamp_ms, CreatedAt))
     }),
-    ?assertEqual(4, Version).
+    ?assertEqual(5, Version).
 
 -spec v2_created_migration_test() -> _.
 v2_created_migration_test() ->
@@ -330,7 +375,7 @@ v2_created_migration_test() ->
             }
         }
     }),
-    ?assertEqual(4, Version),
+    ?assertEqual(5, Version),
     ?assertEqual(#{<<"some key">> => <<"some val">>}, Metadata).
 
 -spec name_migration_test() -> _.

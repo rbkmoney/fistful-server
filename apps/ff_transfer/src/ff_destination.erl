@@ -26,7 +26,7 @@
 
 -type destination() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
-    resource := resource(),
+    resource := resource_full(),
     name := name(),
     created_at => timestamp(),
     external_id => id(),
@@ -35,7 +35,7 @@
 
 -type destination_state() :: #{
     account := account() | undefined,
-    resource := resource(),
+    resource := resource_full(),
     name := name(),
     status => status(),
     created_at => timestamp(),

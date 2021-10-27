@@ -1058,6 +1058,7 @@ compute_provider_terminal_terms(#{provider_id := ProviderID, terminal_id := Term
     ProviderRef = ff_payouts_provider:ref(ProviderID),
     TerminalRef = ff_payouts_terminal:ref(TerminalID),
     ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision);
+% Backward compatibility legacy case for old withrawals without terminals
 compute_provider_terminal_terms(#{provider_id := ProviderID}, VS, DomainRevision) ->
     ProviderRef = ff_payouts_provider:ref(ProviderID),
     case ff_party:compute_provider(ProviderRef, VS, DomainRevision) of

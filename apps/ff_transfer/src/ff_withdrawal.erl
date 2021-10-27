@@ -1135,7 +1135,7 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
         bin_data => ff_dmsl_codec:marshal(bin_data, BinData)
     }).
 
--spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->
+-spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource_params()) ->
     dmsl_domain_thrift:'PaymentTool'().
 construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
     PaymentSystem = maps:get(payment_system, ResourceBankCard, undefined),

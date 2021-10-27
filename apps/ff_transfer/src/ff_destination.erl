@@ -17,7 +17,7 @@
 -type metadata() :: ff_entity_context:md().
 -type timestamp() :: ff_time:timestamp_ms().
 
--type resource() :: ff_resource:resource_params().
+-type resource_params() :: ff_resource:resource_params().
 -type resource_full() :: ff_resource:resource().
 
 -type exp_date() :: {integer(), integer()}.
@@ -48,7 +48,7 @@
     identity := ff_identity:id(),
     name := name(),
     currency := ff_currency:id(),
-    resource := resource(),
+    resource := resource_params(),
     external_id => id(),
     metadata => metadata()
 }.
@@ -70,7 +70,7 @@
 -export_type([destination/0]).
 -export_type([destination_state/0]).
 -export_type([status/0]).
--export_type([resource/0]).
+-export_type([resource_params/0]).
 -export_type([resource_full/0]).
 -export_type([params/0]).
 -export_type([event/0]).
@@ -110,7 +110,7 @@
 -spec account(destination_state()) -> account() | undefined.
 -spec identity(destination_state()) -> identity().
 -spec currency(destination_state()) -> currency().
--spec resource(destination_state()) -> resource().
+-spec resource(destination_state()) -> resource_full().
 -spec status(destination_state()) -> status() | undefined.
 
 id(Destination) ->

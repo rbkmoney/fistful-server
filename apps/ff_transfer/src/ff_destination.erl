@@ -224,11 +224,10 @@ maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateP
     Event;
 maybe_migrate({created, Destination = #{version := 4, resource := Resource}}, MigrateParams) ->
     maybe_migrate(
-        {created,
-            genlib_map:compact(Destination#{
-                version => 5,
-                resource => maybe_migrate_payment_system(Resource)
-            })},
+        {created, Destination#{
+            version => 5,
+            resource => maybe_migrate_payment_system(Resource)
+        }},
         MigrateParams
     );
 maybe_migrate({created, Destination = #{version := 3, name := Name}}, MigrateParams) ->
@@ -296,10 +295,10 @@ maybe_migrate_payment_system({bank_card, #{bank_card := BankCard}}) ->
     PaymentSystem = get_payment_system(BankCard),
     PaymentSystemDeprecated = get_payment_system_deprecated(BankCard),
     {bank_card, #{
-        bank_card => BankCard#{
+        bank_card => genlib_map:compact(BankCard#{
             payment_system_deprecated => PaymentSystemDeprecated,
             payment_system => PaymentSystem
-        }
+        })
     }};
 maybe_migrate_payment_system(Resource) ->
     Resource.
@@ -308,26 +307,29 @@ maybe_migrate_name(Name) ->
     re:replace(Name, "\\d{12,19}", <<"">>, [global, {return, binary}]).
 
 get_payment_system_deprecated(BankCard) ->
-    case maps:get(payment_system_deprecated, BankCard, undefined) of
-        undefined ->
-            %% New field undefined, may be this is old data,
-            %% should check payment_system
-            case maps:get(payment_system, BankCard, undefined) of
-                PS when is_atom(PS) ->
-                    PS;
-                _ ->
-                    undefined
-            end;
-        PS ->
+    case maps:get(payment_system, BankCard, undefined) of
+        PS when is_map(PS) ->
+            %% It look like BankCard is new structure where
+            %% payment_system set to reference (map), so return
+            %% payment_system_deprecated's value if any
+            maps:get(payment_system_deprecated, BankCard, undefined);
+        PS when is_atom(PS) ->
+            %% It looks like BankCard is old data structure
+            %% so just return value (i.e. migrate structure
+            %% to new one).
             PS
     end.
 
 get_payment_system(BankCard) ->
     case maps:get(payment_system, BankCard, undefined) of
-        P = #{id := _} ->
-            P;
+        PS when is_map(PS) ->
+            %% It looks like BankCard is new data structure, no
+            %% need to modify payment_system
+            PS;
         _ ->
-            %% Old data, skip value
+            %% It looks like BankCard is old data structure,
+            %% so remove payment_system's value (i.e. migrate
+            %% structure to new one)
             undefined
     end.
 

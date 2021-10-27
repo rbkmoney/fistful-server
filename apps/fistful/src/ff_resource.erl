@@ -56,7 +56,7 @@
     data := digital_wallet_data()
 }.
 
--opaque bank_card() :: #{
+-type bank_card() :: #{
     token := token(),
     bin => bin(),
     payment_system => payment_system(),

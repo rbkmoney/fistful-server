@@ -38,7 +38,7 @@ encode(Varset) ->
         bin_data = genlib_map:get(bin_data, Varset)
     }.
 
--spec encode_payment_method(ff_destination:resource() | undefined) ->
+-spec encode_payment_method(ff_destination:resource_params() | undefined) ->
     dmsl_domain_thrift:'PaymentMethodRef'() | undefined.
 encode_payment_method(undefined) ->
     undefined;

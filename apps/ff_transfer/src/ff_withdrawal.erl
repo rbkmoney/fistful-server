@@ -251,7 +251,7 @@
 -type external_id() :: id() | undefined.
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type session_id() :: id().
--type destination_resource() :: ff_destination:resource_full().
+-type destination_resource() :: ff_destination:resource().
 -type bin_data() :: ff_bin_data:bin_data().
 -type cash() :: ff_cash:cash().
 -type cash_range() :: ff_range:range(cash()).
@@ -1135,7 +1135,7 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
         bin_data => ff_dmsl_codec:marshal(bin_data, BinData)
     }).
 
--spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->
+-spec construct_payment_tool(ff_destination:resource() | ff_destination:resource_params()) ->
     dmsl_domain_thrift:'PaymentTool'().
 construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
     PaymentSystem = maps:get(payment_system, ResourceBankCard, undefined),

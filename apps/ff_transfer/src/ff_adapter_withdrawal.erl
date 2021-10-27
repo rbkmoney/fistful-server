@@ -18,7 +18,7 @@
 %% Internal types
 %%
 
--type resource() :: ff_destination:resource_full().
+-type resource() :: ff_destination:resource().
 
 -type identity() :: #{
     id := binary(),

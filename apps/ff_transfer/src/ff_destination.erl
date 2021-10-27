@@ -309,7 +309,7 @@ maybe_migrate_name(Name) ->
 get_payment_system_deprecated(BankCard) ->
     case maps:get(payment_system, BankCard, undefined) of
         PS when is_map(PS) ->
-            %% It look like BankCard is new structure where
+            %% It looks like BankCard is new structure where
             %% payment_system set to reference (map), so return
             %% payment_system_deprecated's value if any
             maps:get(payment_system_deprecated, BankCard, undefined);

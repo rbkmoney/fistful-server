@@ -87,7 +87,6 @@ create_identity_ok(_C) ->
     IID = Identity_#idnt_IdentityState.id,
     Name = Identity_#idnt_IdentityState.name,
     PartyID = Identity_#idnt_IdentityState.party_id,
-    ClassID = Identity_#idnt_IdentityState.class_id,
     unblocked = Identity_#idnt_IdentityState.blocking,
     Metadata = Identity_#idnt_IdentityState.metadata,
     Ctx0 = Ctx#{
@@ -154,7 +153,6 @@ get_challenge_event_ok(C) ->
         genlib_retry:linear(10, 1000)
     ),
     {ok, Identity2} = call_api('Get', {IID, #'EventRange'{}}),
-    ?assertNotEqual(undefined, Identity2#idnt_IdentityState.effective_challenge_id),
     ?assertNotEqual(undefined, Identity2#idnt_IdentityState.level_id).
 
 get_event_unknown_identity_ok(_C) ->
@@ -226,13 +224,12 @@ get_challenges_ok(C) ->
 create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx) ->
     create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, #{}).
 
-create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, Metadata) ->
+create_identity(EID, Name, PartyID, ProvID, _ClassID, Ctx, Metadata) ->
     Params = #idnt_IdentityParams{
         id = genlib:unique(),
         name = Name,
         party = PartyID,
         provider = ProvID,
-        cls = ClassID,
         external_id = EID,
         metadata = Metadata
     },

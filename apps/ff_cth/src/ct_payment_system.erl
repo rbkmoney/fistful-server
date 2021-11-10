@@ -157,12 +157,13 @@ configure_processing_apps(Options) ->
         payment_inst_identity_id(Options),
         provider_identity_id(Options),
         <<"good-one">>
-    ),
-    ok = create_crunch_identity(
-        dummy_payment_inst_identity_id(Options),
-        dummy_provider_identity_id(Options),
-        <<"quote-owner">>
     ).
+    % ),
+    % ok = create_crunch_identity(
+    %     dummy_payment_inst_identity_id(Options),
+    %     dummy_provider_identity_id(Options),
+    %     <<"quote-owner">>
+    % ).
 
 create_crunch_identity(PayInstIID, ProviderIID, ProviderID) ->
     PartyID = create_party(),
@@ -211,8 +212,19 @@ do_set_env([Key | Path], Value, Env) ->
     Env#{Key => do_set_env(Path, Value, SubEnv)}.
 
 %% Default options
-
 identity_provider_config(Options) ->
+    identity_provider_config_legacy(Options),
+    Default = #{
+        <<"good-one">> => #{
+            payment_institution_id => 1,
+            contract_template_id => 1,
+            contractor_level => full
+            % contractor_level => full
+        }
+    },
+    maps:get(identity_provider_config, Options, Default).
+
+identity_provider_config_legacy(Options) ->
     Default = #{
         <<"good-one">> => #{
             payment_institution_id => 1,

@@ -90,7 +90,9 @@ create_ok(C) ->
     Currency = <<"RUB">>,
     ID = genlib:unique(),
     ExternalID = genlib:unique(),
+    ct:print("~n~n~n********~n~n[create_person_identity] Start~n"),
     IdentityID = create_person_identity(Party, C),
+    ct:print("[create_person_identity] End~n"),
     Ctx = #{<<"TEST_NS">> => {obj, #{{str, <<"KEY">>} => {b, true}}}},
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Metadata),
@@ -185,7 +187,9 @@ create_party(_C) ->
     ID.
 
 create_person_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+    ct:print("change on churche without challenge~n"),
+    create_identity(Party, <<"good-one">>, <<"church">>, C).
+    % create_identity(Party, <<"good-one">>, <<"person">>, C).
 
 create_identity(Party, ProviderID, ClassID, C) ->
     create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).

@@ -62,42 +62,6 @@ handle_function_('GetContext', {ID}, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
-handle_function_('StartChallenge', {IdentityID, Params}, _Opts) ->
-    %% Не используем ExternalID тк идемпотентность реал-на через challengeID
-    ChallengeParams = ff_identity_codec:unmarshal_challenge_params(Params),
-    case ff_identity_machine:start_challenge(IdentityID, ChallengeParams) of
-        ok ->
-            ChallengeID = maps:get(id, ChallengeParams),
-            {ok, Machine} = ff_identity_machine:get(IdentityID),
-            Identity = ff_identity_machine:identity(Machine),
-            {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
-            {ok, ff_identity_codec:marshal_challenge_state(Challenge)};
-        {error, notfound} ->
-            woody_error:raise(business, #fistful_IdentityNotFound{});
-        {error, {challenge, {pending, _}}} ->
-            woody_error:raise(business, #fistful_ChallengePending{});
-        {error, {challenge, {challenge_class, notfound}}} ->
-            woody_error:raise(business, #fistful_ChallengeClassNotFound{});
-        {error, {challenge, {proof, notfound}}} ->
-            woody_error:raise(business, #fistful_ProofNotFound{});
-        {error, {challenge, {proof, insufficient}}} ->
-            woody_error:raise(business, #fistful_ProofInsufficient{});
-        {error, {challenge, {level, _}}} ->
-            woody_error:raise(business, #fistful_ChallengeLevelIncorrect{});
-        {error, {challenge, conflict}} ->
-            woody_error:raise(business, #fistful_ChallengeConflict{});
-        {error, Error} ->
-            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
-    end;
-handle_function_('GetChallenges', {ID}, _Opts) ->
-    case ff_identity_machine:get(ID) of
-        {ok, Machine} ->
-            Identity = ff_identity_machine:identity(Machine),
-            Challenges = ff_identity:challenges(Identity),
-            {ok, [ff_identity_codec:marshal_challenge_state(C) || C <- maps:values(Challenges)]};
-        {error, notfound} ->
-            woody_error:raise(business, #fistful_IdentityNotFound{})
-    end;
 handle_function_('GetEvents', {IdentityID, EventRange}, _Opts) ->
     case ff_identity_machine:events(IdentityID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, EventList} ->

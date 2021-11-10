@@ -102,16 +102,15 @@ create_ok(C) ->
             id => ID,
             name => Name,
             party => Party,
-            provider => <<"good-one">>,
-            class => <<"person">>
+            provider => <<"good-one">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
-    Party = ff_identity:party(I1),
     Party = ff_identity:party(I1).
 
+% TODO FF-235 delete this test
 identify_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),

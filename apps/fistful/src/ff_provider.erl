@@ -91,9 +91,6 @@ contract_template(#{contract_template_ref := Ref}) ->
 contractor_level(#{contractor_level := Level}) ->
     Level.
 
-% identity_classes(#{identity_classes := ICs}) ->
-%     ICs.
-
 %%
 
 -spec list() -> [provider()].
@@ -113,7 +110,7 @@ get(ID) ->
         %  - We need to somehow expose these things in the domain config
         %  - Possibly inconsistent view of domain config
         Config = unwrap(get_config(ID)),
-        ct:print("ff_provider:get config: ~p~n", [Config]),
+        % ct:print("ff_provider:get config: ~p~n", [Config]),
         PaymentInstitutionRef = #domain_PaymentInstitutionRef{id = cfg(payment_institution, Config)},
         {ok, PaymentInstitution} = ff_domain_config:object({payment_institution, PaymentInstitutionRef}),
         % TODO[FF-235] Delete
@@ -150,6 +147,7 @@ get_identity_class(IdentityClassID, #{identity_classes := ICs}) ->
     {ok, configuration()}
     | {error, notfound}.
 get_config(ID) ->
+    ct:print(">>> ID ~p config ~p~n", [ID, genlib_app:env(fistful, providers, #{})]),
     case genlib_app:env(fistful, providers, #{}) of
         #{ID := ProviderConfig} ->
             {ok, ProviderConfig};

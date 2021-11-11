@@ -90,6 +90,7 @@ payment_system(_PaymentInstitution) ->
     {ok, [ff_payouts_provider:id()]}
     | {error, term()}.
 withdrawal_providers(#{withdrawal_providers := ProvidersSelector}) ->
+    ct:print("Selector ~p~n", [ProvidersSelector]),
     case get_selector_value(withdrawal_providers, ProvidersSelector) of
         {ok, Providers} ->
             {ok, [ProviderID || #domain_ProviderRef{id = ProviderID} <- Providers]};

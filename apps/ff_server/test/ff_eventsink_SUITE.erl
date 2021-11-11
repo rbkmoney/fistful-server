@@ -99,25 +99,6 @@ get_identity_events_ok(C) ->
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
-    ICID = genlib:unique(),
-    D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
-    D2 = ct_identdocstore:rus_domestic_passport(C),
-    ChallengeParams = #{
-        id => ICID,
-        class => <<"sword-initiation">>
-    },
-    ok = ff_identity_machine:start_challenge(
-        ID,
-        ChallengeParams#{proofs => [D1, D2]}
-    ),
-    {completed, _} = ct_helper:await(
-        {completed, #{resolution => approved}},
-        fun() ->
-            {ok, S} = ff_identity_machine:get(ID),
-            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
-            ff_identity_challenge:status(IC)
-        end
-    ),
 
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),

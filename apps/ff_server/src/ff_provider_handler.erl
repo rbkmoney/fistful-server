@@ -46,12 +46,10 @@ marshal_provider(Provider) ->
     ID = ff_provider:id(Provider),
     Name = ff_provider:name(Provider),
     Residences = ff_provider:residences(Provider),
-    IdentityClasses = ff_provider:identity_classes(Provider),
     #provider_Provider{
         id = ID,
         name = Name,
-        residences = marshal_residences(ordsets:to_list(Residences)),
-        identity_classes = marshal_identity_classes(IdentityClasses)
+        residences = marshal_residences(ordsets:to_list(Residences))
     }.
 
 marshal_residences(List) ->
@@ -59,15 +57,3 @@ marshal_residences(List) ->
 
 marshal_residence(Residence) ->
     genlib_string:to_upper(genlib:to_binary(Residence)).
-
--spec marshal_identity_classes(ff_provider:identity_classes()) ->
-    #{ff_proto_provider_thrift:'IdentityClassID'() => ff_proto_provider_thrift:'IdentityClass'()}.
-marshal_identity_classes(Map) ->
-    maps:map(fun(_ClassID, Class) -> marshal_identity_class(Class) end, Map).
-
--spec marshal_identity_class(ff_identity_class:class()) -> ff_proto_provider_thrift:'IdentityClass'().
-marshal_identity_class(Class) ->
-    #provider_IdentityClass{
-        id = ff_identity_class:id(Class),
-        name = ff_identity_class:name(Class)
-    }.

@@ -219,7 +219,16 @@ identity_provider_config(Options) ->
             payment_institution_id => 1,
             contract_template_id => 1,
             contractor_level => full
-            % contractor_level => full
+        },
+        <<"good-one-none">> => #{
+            payment_institution_id => 1,
+            contract_template_id => 1,
+            contractor_level => none
+        },
+        <<"good-two">> => #{
+            payment_institution_id => 2,
+            contract_template_id => 1,
+            contractor_level => full
         }
     },
     maps:get(identity_provider_config, Options, Default).

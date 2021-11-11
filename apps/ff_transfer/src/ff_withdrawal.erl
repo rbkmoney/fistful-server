@@ -542,6 +542,7 @@ is_finished(#{status := pending}) ->
 -spec process_transfer(withdrawal_state()) -> process_result().
 process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
+    ct:print("Activity: ~p~n", [Activity]),
     do_process_transfer(Activity, Withdrawal).
 
 %%

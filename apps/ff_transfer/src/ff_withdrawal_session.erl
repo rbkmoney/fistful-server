@@ -341,25 +341,25 @@ create_callback(Tag, Session) ->
 
 -spec convert_identity_state_to_adapter_identity(ff_identity:identity_state()) -> ff_adapter_withdrawal:identity().
 convert_identity_state_to_adapter_identity(IdentityState) ->
-    Identity = #{
+    #{
         id => ff_identity:id(IdentityState)
-    },
-    case ff_identity:effective_challenge(IdentityState) of
-        {ok, ChallengeID} ->
-            case ff_identity:challenge(ChallengeID, IdentityState) of
-                {ok, Challenge} ->
-                    Identity#{
-                        effective_challenge => #{
-                            id => ChallengeID,
-                            proofs => ff_identity_challenge:proofs(Challenge)
-                        }
-                    };
-                _ ->
-                    Identity
-            end;
-        _ ->
-            Identity
-    end.
+    }.
+    % case ff_identity:effective_challenge(IdentityState) of
+    %     {ok, ChallengeID} ->
+    %         case ff_identity:challenge(ChallengeID, IdentityState) of
+    %             {ok, Challenge} ->
+    %                 Identity#{
+    %                     effective_challenge => #{
+    %                         id => ChallengeID,
+    %                         proofs => ff_identity_challenge:proofs(Challenge)
+    %                     }
+    %                 };
+    %             _ ->
+    %                 Identity
+    %         end;
+    %     _ ->
+    %         Identity
+    % end.
 
 -spec get_adapter_with_opts(ff_withdrawal_routing:route()) -> adapter_with_opts().
 get_adapter_with_opts(Route) ->

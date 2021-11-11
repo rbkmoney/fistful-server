@@ -67,9 +67,7 @@
         | exists}.
 create(Params = #{id := ID}, Ctx) ->
     do(fun() ->
-        % ct:print("Identity[create] params=~p~n", [Params]),
         Events = unwrap(ff_identity:create(Params)),
-        % ct:print("[ff_identity_machine:create] backend: ~p~n", [backend()]),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 

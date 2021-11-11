@@ -102,7 +102,7 @@ get_missing_fails(_C) ->
 
 deposit_via_admin_ok(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = genlib:unique(),
@@ -160,7 +160,7 @@ deposit_via_admin_ok(C) ->
 
 deposit_via_admin_fails(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = genlib:unique(),
@@ -218,7 +218,7 @@ deposit_via_admin_fails(C) ->
 
 deposit_via_admin_amount_fails(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = genlib:unique(),
@@ -264,7 +264,7 @@ deposit_via_admin_amount_fails(C) ->
 
 deposit_via_admin_currency_fails(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = genlib:unique(),
@@ -311,56 +311,48 @@ deposit_via_admin_currency_fails(C) ->
 
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
-    ICID = genlib:unique(),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = create_source(IID, C),
     ok = process_deposit(SrcID, WalID),
     DestID = create_destination(IID, C),
-    ok = pass_identification(ICID, IID, C),
     WdrID = process_withdrawal(WalID, DestID),
     Events = get_withdrawal_events(WdrID),
     [1] = route_changes(Events).
 
 deposit_withdrawal_to_crypto_wallet(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
-    ICID = genlib:unique(),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"WalletName">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = create_source(IID, C),
     ok = process_deposit(SrcID, WalID),
     DestID = create_crypto_destination(IID, C),
-    ok = pass_identification(ICID, IID, C),
     WdrID = process_withdrawal(WalID, DestID),
     Events = get_withdrawal_events(WdrID),
     [2] = route_changes(Events).
 
 deposit_withdrawal_to_digital_wallet(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C, <<"quote-owner">>),
-    ICID = genlib:unique(),
+    IID = create_identity(Party, <<"good-two">>, C),
     WalID = create_wallet(IID, <<"WalletName">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = create_source(IID, C),
     ok = process_deposit(SrcID, WalID),
     DestID = create_digital_destination(IID, C),
-    ok = pass_identification(ICID, IID, C),
     WdrID = process_withdrawal(WalID, DestID),
     Events = get_withdrawal_events(WdrID),
     [3] = route_changes(Events).
 
 deposit_quote_withdrawal_ok(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C, <<"quote-owner">>),
-    ICID = genlib:unique(),
+    IID = create_identity(Party, <<"good-two">>, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = create_source(IID, C),
     ok = process_deposit(SrcID, WalID),
     DestID = create_destination(IID, C),
-    ok = pass_identification(ICID, IID, C),
     DomainRevision = ff_domain_config:head(),
     {ok, PartyRevision} = ff_party:get_revision(Party),
     WdrID = process_withdrawal(WalID, DestID, #{
@@ -387,19 +379,16 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-create_person_identity(Party, C) ->
-    create_person_identity(Party, C, <<"good-one">>).
+create_identity(Party, C) ->
+    create_identity(Party, <<"good-one">>, C).
 
-create_person_identity(Party, C, ProviderID) ->
-    create_identity(Party, ProviderID, <<"person">>, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
-
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.
@@ -553,27 +542,6 @@ create_digital_destination(IID, _C) ->
         end
     ),
     DestID.
-
-pass_identification(ICID, IID, C) ->
-    Doc1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
-    Doc2 = ct_identdocstore:rus_domestic_passport(C),
-    ok = ff_identity_machine:start_challenge(
-        IID,
-        #{
-            id => ICID,
-            class => <<"sword-initiation">>,
-            proofs => [Doc1, Doc2]
-        }
-    ),
-    {completed, _} = ct_helper:await(
-        {completed, #{resolution => approved}},
-        fun() ->
-            {ok, S} = ff_identity_machine:get(IID),
-            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
-            ff_identity_challenge:status(IC)
-        end
-    ),
-    ok.
 
 process_withdrawal(WalID, DestID) ->
     process_withdrawal(WalID, DestID, #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}}).

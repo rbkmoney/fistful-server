@@ -99,7 +99,6 @@ create(ID, CashFlow) ->
     do(fun() ->
         Accounts = ff_cash_flow:gather_used_accounts(CashFlow),
         valid = validate_currencies(Accounts),
-        ct:print("Accounts: ~p~n", [Accounts]),
         valid = validate_identities(Accounts),
         accessible = validate_accessible(Accounts),
         [
@@ -121,7 +120,6 @@ validate_currencies([A0 | Accounts]) ->
     valid.
 
 validate_identities([A0 | Accounts]) ->
-    ct:print("A0: ~p~n", [A0]),
     {ok, IdentitySt} = ff_identity_machine:get(ff_account:identity(A0)),
     Identity0 = ff_identity_machine:identity(IdentitySt),
     ProviderID0 = ff_identity:provider(Identity0),

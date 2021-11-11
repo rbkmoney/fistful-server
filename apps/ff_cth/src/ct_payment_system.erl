@@ -157,45 +157,42 @@ configure_processing_apps(Options) ->
         payment_inst_identity_id(Options),
         provider_identity_id(Options),
         <<"good-one">>
+    ),
+    ok = create_crunch_identity(
+        dummy_payment_inst_identity_id(Options),
+        dummy_provider_identity_id(Options),
+        <<"good-two">>
     ).
-    % ),
-    % ok = create_crunch_identity(
-    %     dummy_payment_inst_identity_id(Options),
-    %     dummy_provider_identity_id(Options),
-    %     <<"quote-owner">>
-    % ).
 
 create_crunch_identity(PayInstIID, ProviderIID, ProviderID) ->
     PartyID = create_party(),
-    PayInstIID = create_identity(PayInstIID, <<"ChurchPI">>, PartyID, ProviderID, <<"church">>),
-    ProviderIID = create_identity(ProviderIID, <<"ChurchPR">>, PartyID, ProviderID, <<"church">>),
+    PayInstIID = create_identity(PayInstIID, <<"ChurchPI">>, PartyID, ProviderID),
+    ProviderIID = create_identity(ProviderIID, <<"ChurchPR">>, PartyID, ProviderID),
     ok.
 
 create_company_account() ->
     PartyID = create_party(),
-    IdentityID = create_company_identity(PartyID, <<"good-one">>),
+    IdentityID = create_identity(PartyID, <<"good-one">>),
     {ok, Currency} = ff_currency:get(<<"RUB">>),
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     Identity = ff_identity_machine:identity(IdentityMachine),
     {ok, [{created, Account}]} = ff_account:create(PartyID, Identity, Currency),
     Account.
 
-create_company_identity(PartyID, ProviderID) ->
-    create_identity(PartyID, ProviderID, <<"church">>).
 
 create_party() ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 
-create_identity(PartyID, ProviderID, ClassID) ->
+create_identity(PartyID, ProviderID) ->
     ID = genlib:unique(),
     Name = <<"Test Identity">>,
-    create_identity(ID, Name, PartyID, ProviderID, ClassID).
+    create_identity(ID, Name, PartyID, ProviderID).
 
-create_identity(ID, Name, PartyID, ProviderID, ClassID) ->
+create_identity(ID, Name, PartyID, ProviderID) ->
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => PartyID, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => PartyID, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.
@@ -219,11 +216,6 @@ identity_provider_config(Options) ->
             payment_institution_id => 1,
             contract_template_id => 1,
             contractor_level => full
-        },
-        <<"good-one-none">> => #{
-            payment_institution_id => 1,
-            contract_template_id => 1,
-            contractor_level => none
         },
         <<"good-two">> => #{
             payment_institution_id => 2,

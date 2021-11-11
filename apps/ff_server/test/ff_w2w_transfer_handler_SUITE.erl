@@ -245,7 +245,7 @@ prepare_standard_environment(Body, C) ->
         currency = #'CurrencyRef'{symbolic_code = Currency}
     } = Body,
     Party = create_party(C),
-    IdentityID = create_person_identity(Party, C),
+    IdentityID = create_identity(Party, C),
     WalletID1 = create_wallet(IdentityID, <<"My wallet 1">>, Currency, C),
     WalletID2 = create_wallet(IdentityID, <<"My wallet 2">>, Currency, C),
     ok = await_wallet_balance({0, Currency}, WalletID1),
@@ -344,19 +344,16 @@ call_accounter(Function, Args) ->
     Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).
 
-create_person_identity(Party, C) ->
-    create_person_identity(Party, C, <<"quote-owner">>).
+create_identity(Party, C) ->
+    create_identity(Party, <<"good-two">>, C).
 
-create_person_identity(Party, C, ProviderID) ->
-    create_identity(Party, ProviderID, <<"person">>, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
-
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

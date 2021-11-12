@@ -237,7 +237,7 @@ get_identity_payment_institution_id(Identity) ->
     Result :: {ok, terms()} | {error, Error},
     Error :: get_contract_terms_error().
 get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) ->
-    DomainVarset = ff_varset:encode(Varset),
+    DomainVarset = ff_varset:encode_contract_terms_varset(Varset),
     TimestampStr = ff_time:to_rfc3339(Timestamp),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_contract_terms(

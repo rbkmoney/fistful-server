@@ -132,6 +132,7 @@ maybe_migrate(Ev, _MigrateContext) ->
 % tests helpers
 
 -spec make_legacy_context(map()) -> context().
+
 make_legacy_context(Map) ->
     % drop mandatory attributes for backward compatible
     maps:without([machine_ref, machine_ns], Map).

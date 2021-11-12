@@ -39,15 +39,15 @@ encode(Varset) ->
         bin_data = genlib_map:get(bin_data, Varset)
     }.
 
--spec encode_contract_terms_varset(varset()) -> dmsl_payment_processing_thrift:'ComputeContractVarset'().
+-spec encode_contract_terms_varset(varset()) -> dmsl_payment_processing_thrift:'ComputeContractTermsVarset'().
 encode_contract_terms_varset(Varset) ->
-    #payproc_ComouteContractVarset{
-        amount = genlib_map:get(cost,Varset),
-        shop_id = genlib_map:get(shop_id,Varset),
-        payout_method = genlib_map:get(payout_method,Varset),
-        payment_tool = genlib_map:get(payment_tool,Varset),
-        wallet_id = genlib_map:get(wallet_id,Varset),
-        bin_data = genlib_map:get(bin_data,Varset)
+    #payproc_ComputeContractTermsVarset{
+        amount = genlib_map:get(cost, Varset),
+        shop_id = genlib_map:get(shop_id, Varset),
+        payout_method = genlib_map:get(payout_method, Varset),
+        payment_tool = genlib_map:get(payment_tool, Varset),
+        wallet_id = genlib_map:get(wallet_id, Varset),
+        bin_data = genlib_map:get(bin_data, Varset)
     }.
 
 -spec encode_payment_method(ff_destination:resource_params() | undefined) ->

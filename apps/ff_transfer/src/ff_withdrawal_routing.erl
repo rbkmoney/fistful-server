@@ -200,7 +200,7 @@ compute_withdrawal_terminals_with_priority(ProviderRef, VS, DomainRevision) ->
                 } ->
                     {ok, [
                         {TerminalID, Priority}
-                     || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals
+                        || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals
                     ]};
                 _ ->
                     Error = {misconfiguration, {missing, terminal_selector}},
@@ -318,6 +318,7 @@ convert_to_route(ProviderTerminalMap) ->
 -spec test() -> _.
 
 -spec convert_to_route_test() -> _.
+
 convert_to_route_test() ->
     ?assertEqual(
         [],

@@ -110,7 +110,7 @@ encode_batch(Postings) ->
         id = 1,
         postings = [
             encode_posting(Source, Destination, Body)
-         || {Source, Destination, Body} <- Postings
+            || {Source, Destination, Body} <- Postings
         ]
     }.
 

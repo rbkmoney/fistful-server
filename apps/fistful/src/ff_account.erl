@@ -93,8 +93,7 @@ create(ID, Identity, Currency) ->
         PartyID = ff_identity:party(Identity),
         accessible = unwrap(party, ff_party:is_accessible(PartyID)),
         TermVarset = #{
-            wallet_id => ID,
-            currency => ff_currency:to_domain_ref(Currency)
+            wallet_id => ID
         },
         {ok, PartyRevision} = ff_party:get_revision(PartyID),
         DomainRevision = ff_domain_config:head(),

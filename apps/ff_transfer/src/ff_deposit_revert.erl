@@ -413,9 +413,7 @@ process_limit_check(Revert) ->
     PartyID = ff_identity:party(Identity),
     PartyRevision = party_revision(Revert),
     ContractID = ff_identity:contract(Identity),
-    {_Amount, Currency} = Body,
     Varset = genlib_map:compact(#{
-        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
         cost => ff_dmsl_codec:marshal(cash, Body),
         wallet_id => WalletID
     }),

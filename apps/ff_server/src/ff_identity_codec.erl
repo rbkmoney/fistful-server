@@ -232,5 +232,4 @@ identity_test() ->
     IdentityOut = unmarshal(identity, marshal(identity, IdentityIn)),
     ?assertEqual(IdentityOut, IdentityIn).
 
-
 -endif.

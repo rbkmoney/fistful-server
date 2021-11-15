@@ -30,7 +30,6 @@ publish_event(#{
         {ev, EventDt, Payload}
     }
 }) ->
-    ct:print("Wthd eventsint: ~p", [Payload]),
     #wthd_SinkEvent{
         id = marshal(event_id, ID),
         created_at = marshal(timestamp, Dt),

@@ -261,7 +261,7 @@ unknown_test(_C) ->
 
 prepare_standard_environment(Currency, C) ->
     PartyID = create_party(C),
-    IdentityID = create_person_identity(PartyID, C),
+    IdentityID = create_identity(PartyID, C),
     WalletFromID = create_wallet(IdentityID, <<"My wallet from">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, Currency}, WalletFromID),
     WalletToID = create_wallet(IdentityID, <<"My wallet to">>, <<"RUB">>, C),
@@ -303,19 +303,16 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-create_person_identity(Party, C) ->
-    create_person_identity(Party, C, <<"good-one">>).
+create_identity(Party, C) ->
+    create_identity(Party, <<"good-one">>, C).
 
-create_person_identity(Party, C, ProviderID) ->
-    create_identity(Party, ProviderID, <<"person">>, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
-
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

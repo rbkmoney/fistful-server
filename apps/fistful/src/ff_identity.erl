@@ -22,8 +22,6 @@
 -type provider_id() :: ff_provider:id().
 -type contract_id() :: ff_party:contract_id().
 -type blocking() :: unblocked | blocked.
-% -type level() :: ff_identity_class:level().
--type level_id() :: ff_identity_class:level_id().
 -type metadata() :: ff_entity_context:md().
 
 -define(ACTUAL_FORMAT_VERSION, 2).
@@ -53,8 +51,8 @@
 }.
 
 -type event() ::
-    {created, identity()}
-    | {level_changed, level_id()}.
+    {created, identity()}.
+
 
 -type params() :: #{
     id := id(),
@@ -76,14 +74,12 @@
 -export_type([event/0]).
 -export_type([id/0]).
 -export_type([create_error/0]).
--export_type([level_id/0]).
 -export_type([params/0]).
 
 -export([id/1]).
 -export([name/1]).
 -export([provider/1]).
 -export([party/1]).
--export([level/1]).
 -export([contract/1]).
 -export([external_id/1]).
 -export([blocking/1]).
@@ -109,7 +105,6 @@
 -spec party(identity_state()) -> party_id().
 -spec contract(identity_state()) -> contract_id().
 -spec blocking(identity_state()) -> boolean() | undefined.
--spec level(identity_state()) -> level_id() | undefined.
 -spec external_id(identity_state()) -> external_id().
 -spec created_at(identity_state()) -> ff_time:timestamp_ms() | undefined.
 -spec metadata(identity_state()) -> metadata() | undefined.
@@ -131,9 +126,6 @@ contract(#{contract := V}) ->
 
 blocking(Identity) ->
     maps:get(blocking, Identity, undefined).
-
-level(Identity) ->
-    maps:get(level, Identity, undefined).
 
 external_id(Identity) ->
     maps:get(external_id, Identity, undefined).

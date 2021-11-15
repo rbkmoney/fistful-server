@@ -210,7 +210,6 @@ do_set_env([Key | Path], Value, Env) ->
 
 %% Default options
 identity_provider_config(Options) ->
-    identity_provider_config_legacy(Options),
     Default = #{
         <<"good-one">> => #{
             payment_institution_id => 1,
@@ -221,128 +220,6 @@ identity_provider_config(Options) ->
             payment_institution_id => 2,
             contract_template_id => 1,
             contractor_level => full
-        }
-    },
-    maps:get(identity_provider_config, Options, Default).
-
-identity_provider_config_legacy(Options) ->
-    Default = #{
-        <<"good-one">> => #{
-            payment_institution_id => 1,
-            routes => [<<"mocketbank">>],
-            identity_classes => #{
-                <<"person">> => #{
-                    name => <<"Well, a person">>,
-                    contract_template_id => 1,
-                    initial_level => <<"peasant">>,
-                    levels => #{
-                        <<"peasant">> => #{
-                            name => <<"Well, a peasant">>,
-                            contractor_level => none
-                        },
-                        <<"nobleman">> => #{
-                            name => <<"Well, a nobleman">>,
-                            contractor_level => partial
-                        }
-                    },
-                    challenges => #{
-                        <<"sword-initiation">> => #{
-                            name => <<"Initiation by sword">>,
-                            base => <<"peasant">>,
-                            target => <<"nobleman">>
-                        }
-                    }
-                },
-                <<"church">> => #{
-                    name => <<"Well, a Сhurch">>,
-                    contract_template_id => 2,
-                    initial_level => <<"mainline">>,
-                    levels => #{
-                        <<"mainline">> => #{
-                            name => <<"Well, a mainline Сhurch">>,
-                            contractor_level => full
-                        }
-                    }
-                }
-            }
-        },
-        <<"good-two">> => #{
-            payment_institution_id => 1,
-            routes => [<<"mocketbank">>],
-            identity_classes => #{
-                <<"person">> => #{
-                    name => <<"Well, a person">>,
-                    contract_template_id => 1,
-                    initial_level => <<"peasant">>,
-                    levels => #{
-                        <<"peasant">> => #{
-                            name => <<"Well, a peasant">>,
-                            contractor_level => none
-                        },
-                        <<"nobleman">> => #{
-                            name => <<"Well, a nobleman">>,
-                            contractor_level => partial
-                        }
-                    },
-                    challenges => #{
-                        <<"sword-initiation">> => #{
-                            name => <<"Initiation by sword">>,
-                            base => <<"peasant">>,
-                            target => <<"nobleman">>
-                        }
-                    }
-                },
-                <<"church">> => #{
-                    name => <<"Well, a Сhurch">>,
-                    contract_template_id => 2,
-                    initial_level => <<"mainline">>,
-                    levels => #{
-                        <<"mainline">> => #{
-                            name => <<"Well, a mainline Сhurch">>,
-                            contractor_level => full
-                        }
-                    }
-                }
-            }
-        },
-        <<"quote-owner">> => #{
-            payment_institution_id => 2,
-            routes => [<<"quotebank">>],
-            identity_classes => #{
-                <<"person">> => #{
-                    name => <<"Well, a person">>,
-                    contract_template_id => 1,
-                    initial_level => <<"peasant">>,
-                    levels => #{
-                        <<"peasant">> => #{
-                            name => <<"Well, a peasant">>,
-                            contractor_level => none
-                        },
-                        <<"nobleman">> => #{
-                            name => <<"Well, a nobleman">>,
-                            contractor_level => partial
-                        }
-                    },
-                    challenges => #{
-                        <<"sword-initiation">> => #{
-                            name => <<"Initiation by sword">>,
-                            base => <<"peasant">>,
-                            target => <<"nobleman">>
-                        }
-                    }
-                },
-                <<"church">> => #{
-                    name => <<"Well, a Сhurch">>,
-                    contract_template_id => 2,
-                    initial_level => <<"mainline">>,
-                    levels => #{
-                        <<"mainline">> => #{
-                            name => <<"Well, a mainline Сhurch">>,
-                            contractor_level => full
-                        }
-                    }
-                }
-            }
         }
     },
     maps:get(identity_provider_config, Options, Default).

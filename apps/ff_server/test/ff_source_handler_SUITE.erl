@@ -118,7 +118,7 @@ create_source_ok(Resource, C) ->
     Name = <<"name">>,
     ID = genlib:unique(),
     ExternalId = genlib:unique(),
-    IdentityID = create_person_identity(Party, C),
+    IdentityID = create_identity(Party, C),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = #src_SourceParams{
@@ -171,16 +171,16 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-create_person_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+create_identity(Party, C) ->
+    create_identity(Party, <<"good-one">>, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

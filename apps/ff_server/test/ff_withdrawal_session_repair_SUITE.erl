@@ -129,15 +129,12 @@ create_party(_C) ->
     ID.
 
 create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+    create_identity(Party, <<"Owner">>, <<"good-one">>, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
-
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

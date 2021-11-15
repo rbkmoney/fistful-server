@@ -34,8 +34,6 @@ handle_function_('Create', {IdentityParams, Context}, Opts) ->
             woody_error:raise(business, #fistful_ProviderNotFound{});
         {error, {party, notfound}} ->
             woody_error:raise(business, #fistful_PartyNotFound{});
-        {error, {identity_class, notfound}} ->
-            woody_error:raise(business, #fistful_IdentityClassNotFound{});
         {error, {inaccessible, _}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
         {error, exists} ->

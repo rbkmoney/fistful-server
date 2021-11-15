@@ -94,8 +94,7 @@ get_identity_events_ok(C) ->
             id => ID,
             name => Name,
             party => Party,
-            provider => <<"good-one">>,
-            class => <<"person">>
+            provider => <<"good-one">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
@@ -161,7 +160,6 @@ get_withdrawal_session_events_ok(C) ->
     SrcID = create_source(IID, C),
     _DepID = process_deposit(SrcID, WalID),
     DestID = create_destination(IID, C),
-    ct:print(">>> process withdrawal"),
     WdrID = process_withdrawal(WalID, DestID),
 
     {ok, St} = ff_withdrawal_machine:get(WdrID),
@@ -355,7 +353,6 @@ process_withdrawal(WalID, DestID) ->
         ff_entity_context:new()
     ),
     succeeded = await_final_withdrawal_status(WdrID),
-    ct:print("~n~n========== !!!!! ==============~n~n"),
     true = ct_helper:await(
         true,
         fun() ->

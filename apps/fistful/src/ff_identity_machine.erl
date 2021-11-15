@@ -126,7 +126,7 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 -spec process_timeout(machine(), _, handler_opts()) -> result().
 process_timeout(_Machine, _, _Opts) ->
-    undefined.
+    #{}.
 
 %%
 

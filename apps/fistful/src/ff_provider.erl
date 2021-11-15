@@ -39,11 +39,9 @@
 
 -type payinst() :: dmsl_domain_thrift:'PaymentInstitution'().
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
--type identity_classes() :: #{ff_identity_class:id() => ff_identity_class:class()}.
 
 -export_type([id/0]).
 -export_type([provider/0]).
--export_type([identity_classes/0]).
 
 -export([id/1]).
 -export([name/1]).
@@ -52,12 +50,8 @@
 -export([contract_template/1]).
 -export([contractor_level/1]).
 
-% -export([identity_classes/1]).
-
 -export([list/0]).
 -export([get/1]).
--export([list_identity_classes/1]).
--export([get_identity_class/2]).
 
 %% Pipeline
 
@@ -71,7 +65,6 @@
 -spec payinst(provider()) -> payinst_ref().
 -spec contract_template(provider()) -> contract_template_ref().
 -spec contractor_level(provider()) -> contractor_level().
-% -spec identity_classes(provider()) -> identity_classes().
 
 id(#{id := ID}) ->
     ID.
@@ -112,11 +105,6 @@ get(ID) ->
         Config = unwrap(get_config(ID)),
         PaymentInstitutionRef = #domain_PaymentInstitutionRef{id = cfg(payment_institution, Config)},
         {ok, PaymentInstitution} = ff_domain_config:object({payment_institution, PaymentInstitutionRef}),
-        % TODO[FF-235] Delete
-        % IdentityClasses = maps:map(
-        %     fun decode_identity_class/2,
-        %     maps:get(identity_classes, Config)
-        % ),
         ContractTemplateRef = #domain_ContractTemplateRef{id = cfg(contract_template_id, Config)},
         % TODO FF-235: we should check configuration when start fistful
         %  after move on domain_config we mustn't do that there
@@ -129,16 +117,6 @@ get(ID) ->
             contractor_level => cfg(contractor_level, Config)
         }
     end).
-
--spec list_identity_classes(provider()) -> [ff_identity_class:id()].
-list_identity_classes(#{identity_classes := ICs}) ->
-    maps:keys(ICs).
-
--spec get_identity_class(ff_identity_class:id(), provider()) ->
-    {ok, ff_identity_class:class()}
-    | {error, notfound}.
-get_identity_class(IdentityClassID, #{identity_classes := ICs}) ->
-    ff_map:find(IdentityClassID, ICs).
 
 %% Provider Configuration
 
@@ -167,48 +145,3 @@ validate_contract_template_ref(ContractTemplateRef) ->
 -spec list_providers() -> [id()].
 list_providers() ->
     maps:keys(genlib_app:env(fistful, providers, #{})).
-
-% decode_identity_class(ICID, ICC) ->
-%     Name = maps:get(name, ICC, ICID),
-%     ContractTemplateRef = #domain_ContractTemplateRef{id = maps:get(contract_template_id, ICC)},
-%     {ok, _} = ff_domain_config:object({contract_template, ContractTemplateRef}),
-%     Levels = maps:map(
-%         fun(LID, LC) ->
-%             LName = maps:get(name, LC, LID),
-%             ContractorLevel = maps:get(contractor_level, LC),
-%             % TODO
-%             %  - `ok = assert_contractor_level(ContractorLevel)`
-%             #{
-%                 id => LID,
-%                 name => LName,
-%                 contractor_level => ContractorLevel
-%             }
-%         end,
-%         maps:get(levels, ICC)
-%     ),
-%     ChallengeClasses = maps:map(
-%         fun(CCID, CCC) ->
-%             CCName = maps:get(name, CCC, CCID),
-%             BaseLevelID = maps:get(base, CCC),
-%             TargetLevelID = maps:get(target, CCC),
-%             {ok, _} = maps:find(BaseLevelID, Levels),
-%             {ok, _} = maps:find(TargetLevelID, Levels),
-%             #{
-%                 id => CCID,
-%                 name => CCName,
-%                 base_level => BaseLevelID,
-%                 target_level => TargetLevelID
-%             }
-%         end,
-%         maps:get(challenges, ICC, #{})
-%     ),
-%     InitialLevelID = maps:get(initial_level, ICC),
-%     {ok, _} = maps:find(InitialLevelID, Levels),
-%     #{
-%         id => ICID,
-%         name => Name,
-%         contract_template_ref => ContractTemplateRef,
-%         initial_level => InitialLevelID,
-%         levels => Levels,
-%         challenge_classes => ChallengeClasses
-%     }.

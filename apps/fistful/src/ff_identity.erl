@@ -53,7 +53,6 @@
 -type event() ::
     {created, identity()}.
 
-
 -type params() :: #{
     id := id(),
     name := name(),
@@ -181,7 +180,7 @@ create(Params = #{id := ID, name := Name, party := Party, provider := ProviderID
                     created_at => ff_time:now(),
                     external_id => maps:get(external_id, Params, undefined),
                     metadata => maps:get(metadata, Params, undefined)
-            })}
+                })}
         ]
     end).
 

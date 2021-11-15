@@ -185,7 +185,7 @@ create_identity(Party, C) ->
 create_identity(Party, ProviderID, C) ->
     create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, Name, ProviderID,  _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
         #{id => ID, name => Name, party => Party, provider => ProviderID},

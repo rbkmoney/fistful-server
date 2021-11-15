@@ -179,7 +179,6 @@ create_company_account() ->
     {ok, [{created, Account}]} = ff_account:create(PartyID, Identity, Currency),
     Account.
 
-
 create_party() ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),

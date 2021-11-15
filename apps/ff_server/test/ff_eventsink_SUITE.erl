@@ -263,7 +263,6 @@ get_create_w2w_transfer_events_ok(C) ->
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
-
 create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),

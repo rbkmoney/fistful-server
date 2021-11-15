@@ -251,7 +251,7 @@
 -type external_id() :: id() | undefined.
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type session_id() :: id().
--type destination_resource() :: ff_destination:resource_full().
+-type destination_resource() :: ff_destination:resource().
 -type bin_data() :: ff_bin_data:bin_data().
 -type cash() :: ff_cash:cash().
 -type cash_range() :: ff_range:range(cash()).
@@ -1038,11 +1038,7 @@ make_final_cash_flow(Withdrawal) ->
     {ok, ff_cash_flow:cash_flow_fee()}
     | {error, term()}.
 compute_fees(Route, VS, DomainRevision) ->
-    ProviderID = maps:get(provider_id, Route),
-    TerminalID = maps:get(terminal_id, Route),
-    ProviderRef = ff_payouts_provider:ref(ProviderID),
-    TerminalRef = ff_payouts_terminal:ref(TerminalID),
-    case ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision) of
+    case compute_provider_terminal_terms(Route, VS, DomainRevision) of
         {ok, #domain_ProvisionTermSet{
             wallet = #domain_WalletProvisionTerms{
                 withdrawals = #domain_WithdrawalProvisionTerms{
@@ -1051,6 +1047,26 @@ compute_fees(Route, VS, DomainRevision) ->
             }
         }} ->
             cash_flow_postings(CashFlowSelector);
+        {error, Error} ->
+            {error, Error}
+    end.
+
+-spec compute_provider_terminal_terms(route(), party_varset(), domain_revision()) ->
+    {ok, ff_party:provision_term_set()}
+    | {error, provider_not_found}
+    | {error, terminal_not_found}.
+compute_provider_terminal_terms(#{provider_id := ProviderID, terminal_id := TerminalID}, VS, DomainRevision) ->
+    ProviderRef = ff_payouts_provider:ref(ProviderID),
+    TerminalRef = ff_payouts_terminal:ref(TerminalID),
+    ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, VS, DomainRevision);
+% Backward compatibility legacy case for old withrawals without terminals
+compute_provider_terminal_terms(#{provider_id := ProviderID}, VS, DomainRevision) ->
+    ProviderRef = ff_payouts_provider:ref(ProviderID),
+    case ff_party:compute_provider(ProviderRef, VS, DomainRevision) of
+        {ok, #domain_Provider{
+            terms = Terms
+        }} ->
+            {ok, Terms};
         {error, Error} ->
             {error, Error}
     end.
@@ -1136,7 +1152,7 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
         bin_data => ff_dmsl_codec:marshal(bin_data, BinData)
     }).
 
--spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->
+-spec construct_payment_tool(ff_destination:resource() | ff_destination:resource_params()) ->
     dmsl_domain_thrift:'PaymentTool'().
 construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
     PaymentSystem = maps:get(payment_system, ResourceBankCard, undefined),

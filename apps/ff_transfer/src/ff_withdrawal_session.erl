@@ -87,7 +87,7 @@
 -type route() :: ff_withdrawal_routing:route().
 
 -type params() :: #{
-    resource := ff_destination:resource_full(),
+    resource := ff_destination:resource(),
     route := route(),
     withdrawal_id := ff_withdrawal:id()
 }.

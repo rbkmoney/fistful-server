@@ -86,7 +86,8 @@ end_per_testcase(_Name, _C) ->
 create_destination_ok_test(C) ->
     Party = create_party(C),
     IID = create_identity(Party, C),
-    _DestinationID = create_destination(IID, C),
+    BankCard = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    _DestinationID = create_destination(IID, BankCard),
     ok.
 
 -spec create_destination_identity_notfound_fail_test(config()) -> test_return().
@@ -140,22 +141,14 @@ create_destination_currency_notfound_fail_test(C) ->
 get_destination_ok_test(C) ->
     Party = create_party(C),
     IID = create_identity(Party, C),
-    DestinationID = create_destination(IID, C),
+    BankCard = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    DestinationID = create_destination(IID, BankCard),
     {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
     ?assertMatch(
         #{
             account := #{currency := <<"RUB">>},
             name := <<"XDestination">>,
-            resource := {
-                bank_card,
-                #{
-                    bank_card := #{
-                        bin := <<"415039">>,
-                        exp_date := {12, 2025},
-                        masked_pan := <<"0900">>
-                    }
-                }
-            },
+            resource := {bank_card, #{bank_card := BankCard}},
             status := authorized
         },
         ff_destination_machine:destination(DestinationMachine)
@@ -186,8 +179,8 @@ create_identity(Party, Name, ProviderID, _C) ->
     ),
     ID.
 
-create_destination(IID, C) ->
-    DestResource = {bank_card, #{bank_card => ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)}},
+create_destination(IID, BankCard) ->
+    DestResource = {bank_card, #{bank_card => BankCard}},
     DestID = create_destination(IID, <<"XDestination">>, <<"RUB">>, DestResource),
     authorized = ct_helper:await(
         authorized,

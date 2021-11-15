@@ -58,6 +58,7 @@
 -export_type([cash/0]).
 -export_type([cash_range/0]).
 -export_type([attempt_limit/0]).
+-export_type([provision_term_set/0]).
 
 -type inaccessibility() ::
     {inaccessible, blocked | suspended}.

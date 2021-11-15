@@ -24,10 +24,6 @@
     payinst := payinst(),
     contract_template_ref := contract_template_ref(),
     contractor_level := contractor_level()
-    % TODO[FF-235]
-    % identity_classes := #{
-    %     ff_identity_class:id() => ff_identity_class:class()
-    % }
 }.
 
 %  TODO: specify exacte type

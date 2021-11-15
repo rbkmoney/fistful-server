@@ -232,19 +232,5 @@ identity_test() ->
     IdentityOut = unmarshal(identity, marshal(identity, IdentityIn)),
     ?assertEqual(IdentityOut, IdentityIn).
 
-% -spec challenge_test() -> _.
-% challenge_test() ->
-%     ChallengeIn = #{
-%         id => genlib:unique(),
-%         proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}],
-%         challenge_class => <<"challenge_class">>,
-%         claim_id => <<"claim_id">>,
-%         provider => <<"provider">>,
-%         identity_class => <<"identity_class">>,
-%         master_id => <<"master_id">>,
-%         claimant => <<"claimant">>
-%     },
-%     ChallengeOut = unmarshal(challenge_payload_created, marshal(challenge_payload_created, ChallengeIn)),
-%     ?assertEqual(ChallengeIn, ChallengeOut).
 
 -endif.

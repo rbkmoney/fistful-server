@@ -318,7 +318,6 @@ convert_to_route(ProviderTerminalMap) ->
 -spec test() -> _.
 
 -spec convert_to_route_test() -> _.
-
 convert_to_route_test() ->
     ?assertEqual(
         [],

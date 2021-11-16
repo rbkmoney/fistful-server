@@ -77,15 +77,6 @@ create_missing_fails(C) ->
             provider => <<"who">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
-    ),
-    ok = ff_identity_machine:create(
-        #{
-            id => ID,
-            name => Name,
-            party => Party,
-            provider => <<"good-one">>
-        },
-        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ).
 
 create_ok(C) ->

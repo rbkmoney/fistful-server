@@ -167,9 +167,9 @@ create_party(_C) ->
     ID.
 
 create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
-% TODO FF-235 delete class
-create_identity(Party, ProviderID, _ClassID, _C) ->
+    create_identity(Party, <<"good-one">>, C).
+
+create_identity(Party, ProviderID, _C) ->
     ID = genlib:unique(),
     Name = <<"Identity Name">>,
     ok = ff_identity_machine:create(

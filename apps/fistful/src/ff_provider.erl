@@ -26,9 +26,8 @@
     contractor_level := contractor_level()
 }.
 
-%  TODO: specify exacte type
 -type configuration() :: #{
-    payment_institution_id := integer(),
+    payinst_id := integer(),
     contract_template_id := integer(),
     contractor_level := contractor_level()
 }.
@@ -122,13 +121,17 @@ get(ID) ->
 get_config(ID) ->
     case genlib_app:env(fistful, providers, #{}) of
         #{ID := ProviderConfig} ->
-            {ok, ProviderConfig};
+            {ok, #{
+                payinst_id => maps:get(payment_institution_id, ProviderConfig),
+                contract_template_id => maps:get(contract_template_id, ProviderConfig),
+                contractor_level => maps:get(contractor_level, ProviderConfig)
+            }};
         #{} ->
             {error, notfound}
     end.
 
 cfg(payment_institution, C) ->
-    maps:get(payment_institution_id, C);
+    maps:get(payinst_id, C);
 cfg(contract_template_id, C) ->
     maps:get(contract_template_id, C);
 cfg(contractor_level, C) ->

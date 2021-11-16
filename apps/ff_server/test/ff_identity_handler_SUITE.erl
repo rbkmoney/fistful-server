@@ -64,10 +64,9 @@ create_identity_ok(_C) ->
     EID = genlib:unique(),
     Name = <<"Identity Name">>,
     ProvID = <<"good-one">>,
-    ClassID = <<"person">>,
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
-    Identity = create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, Metadata),
+    Identity = create_identity(EID, Name, PartyID, ProvID, Ctx, Metadata),
     IID = Identity#idnt_IdentityState.id,
     {ok, Identity_} = call_api('Get', {IID, #'EventRange'{}}),
 
@@ -100,10 +99,8 @@ get_event_unknown_identity_ok(_C) ->
 %%----------
 %% INTERNAL
 %%----------
-create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx) ->
-    create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, #{}).
 
-create_identity(EID, Name, PartyID, ProvID, _ClassID, Ctx, Metadata) ->
+create_identity(EID, Name, PartyID, ProvID, Ctx, Metadata) ->
     Params = #idnt_IdentityParams{
         id = genlib:unique(),
         name = Name,

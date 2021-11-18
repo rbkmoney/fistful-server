@@ -88,8 +88,8 @@ get_event_unknown_identity_ok(_C) ->
     PID = create_party(),
     Name = <<"Identity Name">>,
     ProvID = <<"good-one">>,
-    ClassID = <<"person">>,
-    create_identity(EID, Name, PID, ProvID, ClassID, Ctx),
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
+    create_identity(EID, Name, PID, ProvID, Ctx, Metadata),
     Range = #'EventRange'{
         limit = 1,
         'after' = undefined

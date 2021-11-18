@@ -51,7 +51,16 @@
 }.
 
 -type event() ::
-    {created, identity()}.
+    {created, identity()}
+    | {level_changed, level_id()}
+    | {effective_challenge_changed, challenge_id()}
+    | {{challenge, challenge_id()}, challenge_event()}.
+
+-type level_id() :: binary().
+-type challenge_id() :: id().
+-type challenge_event() ::
+    {created, any()}
+    | {status_changed, any()}.
 
 -type params() :: #{
     id := id(),

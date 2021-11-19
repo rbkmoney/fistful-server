@@ -404,8 +404,7 @@ v4_created_migration_old_test() ->
             created_at => CreatedAt
         }},
     {created, #{version := Version, resource := {bank_card, #{bank_card := NewBankCard}}}} = maybe_migrate(
-        LegacyEvent,
-        #{}
+        LegacyEvent, #{}
     ),
     ?assertEqual(5, Version),
     ?assertEqual(visa, maps:get(payment_system_deprecated, NewBankCard)),
@@ -436,8 +435,7 @@ v4_created_migration_new_test() ->
             created_at => CreatedAt
         }},
     {created, #{version := Version, resource := {bank_card, #{bank_card := NewBankCard}}}} = maybe_migrate(
-        LegacyEvent,
-        #{}
+        LegacyEvent, #{}
     ),
     ?assertEqual(5, Version),
     ?assertEqual(visa, maps:get(payment_system_deprecated, NewBankCard)),
@@ -467,8 +465,7 @@ v4_created_migration_test() ->
             created_at => CreatedAt
         }},
     {created, #{version := Version, resource := {bank_card, #{bank_card := NewBankCard}}}} = maybe_migrate(
-        LegacyEvent,
-        #{}
+        LegacyEvent, #{}
     ),
     ?assertEqual(5, Version),
     ?assertError({badkey, payment_system_deprecated}, maps:get(payment_system_deprecated, NewBankCard)),

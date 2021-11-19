@@ -42,6 +42,7 @@ encode(Varset) ->
 -spec encode_contract_terms_varset(varset()) -> dmsl_payment_processing_thrift:'ComputeContractTermsVarset'().
 encode_contract_terms_varset(Varset) ->
     #payproc_ComputeContractTermsVarset{
+        currency = genlib_map:get(currency, Varset),
         amount = genlib_map:get(cost, Varset),
         shop_id = genlib_map:get(shop_id, Varset),
         payout_method = genlib_map:get(payout_method, Varset),

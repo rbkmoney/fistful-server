@@ -296,7 +296,9 @@ create(Params) ->
         PartyID = ff_identity:party(Identity),
         {ok, PartyRevision} = ff_party:get_revision(PartyID),
         ContractID = ff_identity:contract(Identity),
+        {_Amount, Currency} = Body,
         Varset = genlib_map:compact(#{
+            currency => ff_dmsl_codec:marshal(currency_ref, Currency),
             cost => ff_dmsl_codec:marshal(cash, Body),
             wallet_id => WalletID
         }),
@@ -551,8 +553,10 @@ process_limit_check(Deposit) ->
     PartyID = ff_identity:party(Identity),
     PartyRevision = operation_party_revision(Deposit),
     ContractID = ff_identity:contract(Identity),
+    {_Amount, Currency} = Body,
     Timestamp = operation_timestamp(Deposit),
     Varset = genlib_map:compact(#{
+        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
         cost => ff_dmsl_codec:marshal(cash, Body),
         wallet_id => WalletID
     }),

@@ -76,6 +76,7 @@
 -type payment_system() :: #{
     id := binary()
 }.
+
 -type payment_system_deprecated() :: ff_bin_data:payment_system_deprecated().
 -type masked_pan() :: binary().
 -type bank_name() :: binary().

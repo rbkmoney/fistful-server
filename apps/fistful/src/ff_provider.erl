@@ -101,8 +101,7 @@ get(ID) ->
         PaymentInstitutionRef = #domain_PaymentInstitutionRef{id = cfg(payment_institution, Config)},
         {ok, PaymentInstitution} = ff_domain_config:object({payment_institution, PaymentInstitutionRef}),
         ContractTemplateRef = #domain_ContractTemplateRef{id = cfg(contract_template_id, Config)},
-        % TODO FF-235: we should check configuration when start fistful
-        %  after move on domain_config we mustn't do that there
+        % TODO FF-245: we shouldn't check after provider will be moved on domain_config
         ok = validate_contract_template_ref(ContractTemplateRef),
         #{
             id => ID,

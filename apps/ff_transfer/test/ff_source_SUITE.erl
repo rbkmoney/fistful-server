@@ -86,7 +86,7 @@ end_per_testcase(_Name, _C) ->
 -spec create_source_ok_test(config()) -> test_return().
 create_source_ok_test(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     _SourceID = create_source(IID, C),
     ok.
 
@@ -107,7 +107,7 @@ create_source_identity_notfound_fail_test(_C) ->
 -spec create_source_currency_notfound_fail_test(config()) -> test_return().
 create_source_currency_notfound_fail_test(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     Params = #{
         id => genlib:unique(),
@@ -122,7 +122,7 @@ create_source_currency_notfound_fail_test(C) ->
 -spec get_source_ok_test(config()) -> test_return().
 get_source_ok_test(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     SourceID = create_source(IID, C),
     {ok, SourceMachine} = ff_source_machine:get(SourceID),
     ?assertMatch(
@@ -146,19 +146,16 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-create_person_identity(Party, C) ->
-    create_person_identity(Party, C, <<"good-one">>).
+create_identity(Party, C) ->
+    create_identity(Party, <<"good-one">>, C).
 
-create_person_identity(Party, C, ProviderID) ->
-    create_identity(Party, ProviderID, <<"person">>, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
-
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

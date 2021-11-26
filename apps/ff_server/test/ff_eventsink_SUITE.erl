@@ -94,29 +94,9 @@ get_identity_events_ok(C) ->
             id => ID,
             name => Name,
             party => Party,
-            provider => <<"good-one">>,
-            class => <<"person">>
+            provider => <<"good-one">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
-    ),
-    ICID = genlib:unique(),
-    D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
-    D2 = ct_identdocstore:rus_domestic_passport(C),
-    ChallengeParams = #{
-        id => ICID,
-        class => <<"sword-initiation">>
-    },
-    ok = ff_identity_machine:start_challenge(
-        ID,
-        ChallengeParams#{proofs => [D1, D2]}
-    ),
-    {completed, _} = ct_helper:await(
-        {completed, #{resolution => approved}},
-        fun() ->
-            {ok, S} = ff_identity_machine:get(ID),
-            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
-            ff_identity_challenge:status(IC)
-        end
     ),
 
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000}),
@@ -150,7 +130,7 @@ get_withdrawal_events_ok(C) ->
     Sink = withdrawal_event_sink,
     LastEvent = ct_eventsink:last_id(Sink),
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
     SrcID = create_source(IID, C),
     _DepID = process_deposit(SrcID, WalID),
@@ -175,7 +155,7 @@ get_withdrawal_session_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
     SrcID = create_source(IID, C),
     _DepID = process_deposit(SrcID, WalID),
@@ -199,7 +179,7 @@ get_create_destination_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     DestID = create_destination(IID, C),
 
     {ok, RawEvents} = ff_destination_machine:events(DestID, {undefined, 1000}),
@@ -212,7 +192,7 @@ get_create_source_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     SrcID = create_source(IID, C),
 
     {ok, RawEvents} = ff_source_machine:events(SrcID, {undefined, 1000}),
@@ -225,7 +205,7 @@ get_create_deposit_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
     SrcID = create_source(IID, C),
     DepID = process_deposit(SrcID, WalID),
@@ -271,7 +251,7 @@ get_create_w2w_transfer_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     WalFromID = create_wallet(IID, <<"HAHA NO1">>, <<"RUB">>, C),
     WalToID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
     SrcID = create_source(IID, C),
@@ -283,24 +263,21 @@ get_create_w2w_transfer_events_ok(C) ->
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
-create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
-
 create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 
-create_person_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+create_identity(Party, C) ->
+    create_identity(Party, <<"good-one">>, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.
@@ -382,7 +359,8 @@ process_withdrawal(WalID, DestID) ->
             {Events, _MaxID} = ct_eventsink:events(undefined, 1000, Sink),
             search_event_commited(Events, WdrID)
         end,
-        genlib_retry:linear(15, 1000)
+        % genlib_retry:linear(15, 1000)
+        genlib_retry:linear(5, 1000)
     ),
     WdrID.
 

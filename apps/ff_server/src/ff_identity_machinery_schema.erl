@@ -200,7 +200,6 @@ unmarshal(Type, Value) ->
 -spec created_v0_decoding_test() -> _.
 created_v0_decoding_test() ->
     Identity = #{
-        class => <<"class">>,
         contract => <<"ContractID">>,
         created_at => 1592576943762,
         id => <<"ID">>,
@@ -390,9 +389,7 @@ challenge_created_v0_decoding_test() ->
         ]},
 
     DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec challenge_status_changed_v0_decoding_test() -> _.
 challenge_status_changed_v0_decoding_test() ->
@@ -430,14 +427,11 @@ challenge_status_changed_v0_decoding_test() ->
         ]},
 
     DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec created_v1_decoding_test() -> _.
 created_v1_decoding_test() ->
     Identity = #{
-        class => <<"class">>,
         contract => <<"ContractID">>,
         created_at => 1592576943762,
         id => <<"ID">>,
@@ -458,9 +452,7 @@ created_v1_decoding_test() ->
             >>)},
     C = make_legacy_context(#{ctx => #{<<"com.rbkmoney.wapi">> => #{<<"name">> => <<"Name">>}}}),
     {DecodedLegacy, _} = unmarshal({event, 1}, LegacyEvent, C),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    {Decoded, _} = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary, C),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec level_changed_v1_decoding_test() -> _.
 level_changed_v1_decoding_test() ->
@@ -472,9 +464,7 @@ level_changed_v1_decoding_test() ->
                 "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgsAAgAAAA1sZXZlbF9jaGFuZ2VkAAA="
             >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec effective_challenge_changed_v1_decoding_test() -> _.
 effective_challenge_changed_v1_decoding_test() ->
@@ -515,9 +505,7 @@ challenge_created_v1_decoding_test() ->
                 "NsYWltX2lkCwAIAAAACW1hc3Rlcl9pZAsACQAAAAhjbGFpbWFudAAAAAAA"
             >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec challenge_status_changed_v1_decoding_test() -> _.
 challenge_status_changed_v1_decoding_test() ->
@@ -529,14 +517,11 @@ challenge_status_changed_v1_decoding_test() ->
                 "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwsAAQAAAAtjaGFsbGVuZ2VJRAwAAgwAAgwAAQAAAAAAAA=="
             >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec created_v2_decoding_test() -> _.
 created_v2_decoding_test() ->
     Identity = #{
-        class => <<"class">>,
         contract => <<"ContractID">>,
         created_at => 1592576943762,
         id => <<"ID">>,
@@ -557,9 +542,7 @@ created_v2_decoding_test() ->
                 "YWwAAAAA"
             >>)},
     DecodedLegacy = unmarshal({event, 2}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec level_changed_v2_decoding_test() -> _.
 level_changed_v2_decoding_test() ->
@@ -571,9 +554,7 @@ level_changed_v2_decoding_test() ->
                 "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgsAAgAAAA1sZXZlbF9jaGFuZ2VkAAA="
             >>)},
     DecodedLegacy = unmarshal({event, 2}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec effective_challenge_changed_v2_decoding_test() -> _.
 effective_challenge_changed_v2_decoding_test() ->
@@ -585,9 +566,7 @@ effective_challenge_changed_v2_decoding_test() ->
                 "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgsABAAAABtlZmZlY3RpdmVfY2hhbGxlbmdlX2NoYW5nZWQAAA=="
             >>)},
     DecodedLegacy = unmarshal({event, 2}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec challenge_created_v2_decoding_test() -> _.
 challenge_created_v2_decoding_test() ->
@@ -614,9 +593,7 @@ challenge_created_v2_decoding_test() ->
                 "NsYWltX2lkCwAIAAAACW1hc3Rlcl9pZAsACQAAAAhjbGFpbWFudAAAAAAA"
             >>)},
     DecodedLegacy = unmarshal({event, 2}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -spec challenge_status_changed_v2_decoding_test() -> _.
 challenge_status_changed_v2_decoding_test() ->
@@ -628,8 +605,6 @@ challenge_status_changed_v2_decoding_test() ->
                 "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwsAAQAAAAtjaGFsbGVuZ2VJRAwAAgwAAgwAAQAAAAAAAA=="
             >>)},
     DecodedLegacy = unmarshal({event, 2}, LegacyEvent),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
+    ?assertEqual(Event, DecodedLegacy).
 
 -endif.

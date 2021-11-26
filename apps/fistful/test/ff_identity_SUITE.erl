@@ -9,7 +9,6 @@
 -export([get_missing_fails/1]).
 -export([create_missing_fails/1]).
 -export([create_ok/1]).
--export([identify_ok/1]).
 
 %%
 
@@ -25,14 +24,12 @@ all() ->
     [
         get_missing_fails,
         create_missing_fails,
-        create_ok,
-        identify_ok
+        create_ok
     ].
 
 -spec get_missing_fails(config()) -> test_return().
 -spec create_missing_fails(config()) -> test_return().
 -spec create_ok(config()) -> test_return().
--spec identify_ok(config()) -> test_return().
 
 -spec init_per_suite(config()) -> config().
 
@@ -77,18 +74,7 @@ create_missing_fails(C) ->
             id => ID,
             name => Name,
             party => Party,
-            provider => <<"who">>,
-            class => <<"person">>
-        },
-        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
-    ),
-    {error, {identity_class, notfound}} = ff_identity_machine:create(
-        #{
-            id => ID,
-            name => Name,
-            party => Party,
-            provider => <<"good-one">>,
-            class => <<"nosrep">>
+            provider => <<"who">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ).
@@ -102,67 +88,13 @@ create_ok(C) ->
             id => ID,
             name => Name,
             party => Party,
-            provider => <<"good-one">>,
-            class => <<"person">>
+            provider => <<"good-one">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
-    Party = ff_identity:party(I1),
     Party = ff_identity:party(I1).
-
-identify_ok(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    Name = <<"Identity Name">>,
-    ok = ff_identity_machine:create(
-        #{
-            id => ID,
-            name => Name,
-            party => Party,
-            provider => <<"good-one">>,
-            class => <<"person">>
-        },
-        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
-    ),
-    ICID = genlib:unique(),
-    {ok, S1} = ff_identity_machine:get(ID),
-    I1 = ff_identity_machine:identity(S1),
-    {error, notfound} = ff_identity:challenge(ICID, I1),
-    D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
-    D2 = ct_identdocstore:rus_domestic_passport(C),
-    ChallengeParams = #{
-        id => ICID,
-        class => <<"sword-initiation">>
-    },
-    {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
-        ID,
-        ChallengeParams#{proofs => []}
-    ),
-    {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
-        ID,
-        ChallengeParams#{proofs => [D1]}
-    ),
-    ok = ff_identity_machine:start_challenge(
-        ID,
-        ChallengeParams#{proofs => [D1, D2]}
-    ),
-    {error, {challenge, {pending, ICID}}} = ff_identity_machine:start_challenge(
-        ID,
-        ChallengeParams#{proofs => [D1, D2]}
-    ),
-    {completed, _} = ct_helper:await(
-        {completed, #{resolution => approved}},
-        fun() ->
-            {ok, S} = ff_identity_machine:get(ID),
-            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
-            ff_identity_challenge:status(IC)
-        end
-    ),
-    {ok, S3} = ff_identity_machine:get(ID),
-    I3 = ff_identity_machine:identity(S3),
-    {ok, ICID} = ff_identity:effective_challenge(I3).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),

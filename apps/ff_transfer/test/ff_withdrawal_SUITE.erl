@@ -162,7 +162,7 @@ session_fail_test(C) ->
     Party = create_party(C),
     Currency = <<"RUB">>,
     WithdrawalCash = {100, Currency},
-    IdentityID = create_person_identity(Party, C, <<"quote-owner">>),
+    IdentityID = create_identity(Party, <<"good-two">>, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
     ok = await_wallet_balance({0, Currency}, WalletID),
     DestinationID = create_destination(IdentityID, undefined, C),
@@ -382,7 +382,7 @@ create_identity_providers_mismatch_error_test(C) ->
         destination_id := DestinationID
     } = prepare_standard_environment(Cash, C),
     Party = create_party(C),
-    IdentityID = create_identity(Party, <<"good-two">>, <<"person">>, C),
+    IdentityID = create_identity(Party, <<"good-two">>, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, <<"RUB">>, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
@@ -498,7 +498,7 @@ crypto_quota_ok_test(C) ->
     Currency = <<"RUB">>,
     Cash = {100, Currency},
     Party = create_party(C),
-    IdentityID = create_person_identity(Party, C, <<"quote-owner">>),
+    IdentityID = create_identity(Party, <<"good-two">>, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
     ok = await_wallet_balance({0, Currency}, WalletID),
     DestinationID = create_crypto_destination(IdentityID, C),
@@ -835,18 +835,15 @@ create_party(_C) ->
     ID.
 
 create_person_identity(Party, C) ->
-    create_person_identity(Party, C, <<"good-one">>).
+    create_identity(Party, <<"good-one">>, C).
 
-create_person_identity(Party, C, ProviderID) ->
-    create_identity(Party, ProviderID, <<"person">>, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
-
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

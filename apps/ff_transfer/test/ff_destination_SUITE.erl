@@ -85,7 +85,7 @@ end_per_testcase(_Name, _C) ->
 -spec create_destination_ok_test(config()) -> test_return().
 create_destination_ok_test(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     BankCard = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     _DestinationID = create_destination(IID, BankCard),
     ok.
@@ -116,7 +116,7 @@ create_destination_identity_notfound_fail_test(C) ->
 -spec create_destination_currency_notfound_fail_test(config()) -> test_return().
 create_destination_currency_notfound_fail_test(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     DestResource = {
         bank_card,
         #{
@@ -140,7 +140,7 @@ create_destination_currency_notfound_fail_test(C) ->
 -spec get_destination_ok_test(config()) -> test_return().
 get_destination_ok_test(C) ->
     Party = create_party(C),
-    IID = create_person_identity(Party, C),
+    IID = create_identity(Party, C),
     BankCard = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     DestinationID = create_destination(IID, BankCard),
     {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
@@ -165,19 +165,16 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-create_person_identity(Party, C) ->
-    create_person_identity(Party, C, <<"good-one">>).
+create_identity(Party, C) ->
+    create_identity(Party, <<"good-one">>, C).
 
-create_person_identity(Party, C, ProviderID) ->
-    create_identity(Party, ProviderID, <<"person">>, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
-
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

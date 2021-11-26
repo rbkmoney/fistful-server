@@ -90,7 +90,7 @@ create_ok(C) ->
     Currency = <<"RUB">>,
     ID = genlib:unique(),
     ExternalID = genlib:unique(),
-    IdentityID = create_person_identity(Party, C),
+    IdentityID = create_identity(Party, C),
     Ctx = #{<<"TEST_NS">> => {obj, #{{str, <<"KEY">>} => {b, true}}}},
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Metadata),
@@ -121,7 +121,7 @@ create_error_currency_not_found(C) ->
     Party = create_party(C),
     Currency = <<"RBK.MONEY">>,
     ID = genlib:unique(),
-    IdentityID = create_person_identity(Party, C),
+    IdentityID = create_identity(Party, C),
     Params = construct_wallet_params(ID, IdentityID, Currency),
     Result = call_service('Create', {Params, #{}}),
     ?assertMatch({exception, #fistful_CurrencyNotFound{}}, Result).
@@ -130,7 +130,7 @@ create_error_party_blocked(C) ->
     Party = create_party(C),
     Currency = <<"RUB">>,
     ID = genlib:unique(),
-    IdentityID = create_person_identity(Party, C),
+    IdentityID = create_identity(Party, C),
     ok = block_party(Party, C),
     Params = construct_wallet_params(ID, IdentityID, Currency),
     Result = call_service('Create', {Params, #{}}),
@@ -140,7 +140,7 @@ create_error_party_suspended(C) ->
     Party = create_party(C),
     Currency = <<"RUB">>,
     ID = genlib:unique(),
-    IdentityID = create_person_identity(Party, C),
+    IdentityID = create_identity(Party, C),
     ok = suspend_party(Party, C),
     Params = construct_wallet_params(ID, IdentityID, Currency),
     Result = call_service('Create', {Params, #{}}),
@@ -151,7 +151,7 @@ get_account_balance(C) ->
     Currency = <<"RUB">>,
     ID = genlib:unique(),
     ExternalID = genlib:unique(),
-    IdentityID = create_person_identity(Party, C),
+    IdentityID = create_identity(Party, C),
     Ctx = #{<<"TEST_NS">> => {obj, #{{str, <<"KEY">>} => {b, true}}}},
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Metadata),
@@ -184,16 +184,16 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-create_person_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+create_identity(Party, C) ->
+    create_identity(Party, <<"good-one">>, C).
 
-create_identity(Party, ProviderID, ClassID, C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
+create_identity(Party, ProviderID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, C).
 
-create_identity(Party, Name, ProviderID, ClassID, _C) ->
+create_identity(Party, Name, ProviderID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID},
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

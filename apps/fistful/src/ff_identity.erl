@@ -170,6 +170,7 @@ create(Params = #{id := ID, name := Name, party := Party, provider := ProviderID
     do(fun() ->
         accessible = unwrap(party, ff_party:is_accessible(Party)),
         Provider = unwrap(provider, ff_provider:get(ProviderID)),
+        ct:print("Provider: ~p~n", [Provider]),
         Contract = unwrap(
             ff_party:create_contract(Party, #{
                 payinst => ff_provider:payinst(Provider),

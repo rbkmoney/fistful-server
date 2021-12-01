@@ -32,6 +32,9 @@
 -type id() :: binary().
 -type config() :: ct_helper:config().
 
+-define(IDENTITY_PROVIDER_NAME, <<"Test provider">>).
+
+
 %% API
 
 -spec setup() -> fun((config()) -> config()).
@@ -172,7 +175,7 @@ create_crunch_identity(PayInstIID, ProviderIID, ProviderID) ->
 
 create_company_account() ->
     PartyID = create_party(),
-    IdentityID = create_identity(PartyID, <<"good-one">>),
+    IdentityID = create_identity(PartyID, ?IDENTITY_PROVIDER_NAME),
     {ok, Currency} = ff_currency:get(<<"RUB">>),
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     Identity = ff_identity_machine:identity(IdentityMachine),
@@ -280,8 +283,9 @@ domain_config(Options, C) ->
             candidate({constant, true}, ?trm(4))
         ]},
 
+
     Default = [
-        ct_domain:globals(?eas(1), [?payinst(1)]),
+        ct_domain:globals(?eas(1), [?payinst(1)], [?identprov(?IDENTITY_PROVIDER_NAME)]),
         ct_domain:external_account_set(?eas(1), <<"Default">>, ?cur(<<"RUB">>), C),
 
         routing_ruleset(?ruleset(1), <<"WithdrawalRuleset#1">>, WithdrawalDecision1),
@@ -596,7 +600,9 @@ domain_config(Options, C) ->
         ct_domain:payment_method(?pmt(bank_card_deprecated, mastercard)),
 
         ct_domain:payment_system(?pmtsys(<<"VISA">>), <<"VISA">>),
-        ct_domain:payment_system(?pmtsys(<<"NSPK MIR">>), <<"NSPK MIR">>)
+        ct_domain:payment_system(?pmtsys(<<"NSPK MIR">>), <<"NSPK MIR">>),
+
+        identity_provider(?identprov(?IDENTITY_PROVIDER_NAME), ?payinst(1), ?tmpl(1))
     ],
     maps:get(domain_config, Options, Default).
 
@@ -982,3 +988,13 @@ candidate(Allowed, Terminal) ->
         allowed = Allowed,
         terminal = Terminal
     }.
+
+identity_provider(Ref, PayInstRef, TmplRef) ->
+    {identity_provider, #domain_IdentityProviderObject{
+        ref = Ref,
+        data = #domain_IdentityProvider{
+            payment_institution = PayInstRef,
+            contract_template = TmplRef,
+            contractor_level = full
+        }
+    }}.

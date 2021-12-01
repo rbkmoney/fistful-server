@@ -190,6 +190,7 @@ get_revision(ID) ->
     | {error, inaccessibility()}
     | {error, invalid}.
 create_contract(ID, Prototype) ->
+    ct:print("Prototype: ~p~n", [Prototype]),
     do(fun() ->
         ContractID = generate_contract_id(),
         Changeset = construct_contract_changeset(ContractID, Prototype),

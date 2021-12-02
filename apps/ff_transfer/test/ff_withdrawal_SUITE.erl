@@ -628,37 +628,16 @@ force_status_change_test(C) ->
 
 -spec repair_routing_ok_test(config()) -> test_return().
 repair_routing_ok_test(C) ->
-    %DomainConfig0 = ct_domain_config:all(ct_domain_config:head()),
-    %#{{routing_rules, #domain_RoutingRulesetRef{id = 1}} := RoutingRules0} = DomainConfig0,
-    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> OldRules=~p~n", [RoutingRules0]),
-    %ct_domain_config:update(withdrawal_misconfig_ruleset_fixture()),
-    _ = withdrawal_misconfig_ruleset_fixture(),
-    %DomainConfig1 = ct_domain_config:all(ct_domain_config:head()),
-    %#{{routing_rules, #domain_RoutingRulesetRef{id = 1}} := RoutingRules1} = DomainConfig1,
-    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> NewRules=~p~n", [RoutingRules1]),
-    Head0 = ct_domain_config:head(),
-    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Head=~p~n", [Head0]),
     PaymentInstitutionRef = {payment_institution, #domain_PaymentInstitutionRef{id = 1}},
+    Head0 = ct_domain_config:head(),
     {payment_institution, PaymentInstitution0} = ct_domain_config:checkout_object(Head0, PaymentInstitutionRef),
-    ct:pal(error, "WOLOLO> repair_routing_ok_test -> PaymentInstOld=~p~n", [PaymentInstitution0]),
     Data0 = PaymentInstitution0#domain_PaymentInstitutionObject.data,
     Data1 = Data0#domain_PaymentInstitution{withdrawal_providers = undefined},
     PaymentInstitution1 =
         PaymentInstitution0#domain_PaymentInstitutionObject{
             data = Data1
         },
-    ct:pal(error, "WOLOLO> repair_routing_ok_test -> PaymentInstToUpdate=~p~n", [PaymentInstitution1]),
-    %ct_domain_config:remove({payment_institution, PaymentInstitution0}),
     ct_domain_config:upsert({payment_institution, PaymentInstitution1}),
-    Head1 = ct_domain_config:head(),
-    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Head=~p~n", [Head1]),
-    PaymentInstitution2 = ct_domain_config:checkout_object(Head1, PaymentInstitutionRef),
-    ct:pal(error, "WOLOLO> repair_routing_ok_test -> PaymentInstNew=~p~n", [PaymentInstitution2]),
-
-    Domain = ct_domain_config:all(ct_domain_config:head()),
-    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Domain=~p~n", [Domain]),
-
-
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -673,20 +652,25 @@ repair_routing_ok_test(C) ->
         external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    await_withdraval_transfer_created(WithdrawalID),
+    %await_withdraval_transfer_created(WithdrawalID),
+    timer:sleep(5000),
     Machine = ff_withdrawal_machine:get(WithdrawalID),
     ct:pal(error, "WOLOLO> repair_routing_ok_test -> Machine=~p~n", [Machine]), 
-    ?assertMatch(pending, get_withdrawal_status(WithdrawalID)),
-    {ok, ok} =
-        call_withdrawal_repair(
-            WithdrawalID,
-            {routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{
-                route = #wthd_Route{
-                        provider_id = 100500,
-                        terminal_id = 100500
-                }
-            }}}
-        ).
+    St = ff_machine:collapse(ff_withdrawal, Machine),
+    Withdrawal = ff_withdrawal_machine:withdrawal(St),
+    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Withdrawal=~p~n", [Withdrawal]), 
+    ok.
+    %?assertMatch(pending, get_withdrawal_status(WithdrawalID)),
+    %{ok, ok} =
+    %    call_withdrawal_repair(
+    %        WithdrawalID,
+    %        {routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{
+    %            route = #wthd_Route{
+    %                    provider_id = 100500,
+    %                    terminal_id = 100500
+    %            }
+    %        }}}
+    %    ).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
@@ -1078,20 +1062,6 @@ call_withdrawal_repair(SessionID, Scenario) ->
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).
-
-withdrawal_misconfig_ruleset_fixture() ->
-    {routing_rules, #domain_RoutingRulesObject{
-        ref = #domain_RoutingRulesetRef{id = 1},
-        data = #domain_RoutingRuleset{
-            name = <<"Misconfigured Ruleset">>,
-            decisions = {delegates, [
-                #domain_RoutingDelegate{
-                   allowed = {condition, {bin_data, #domain_BinDataCondition{}}},
-                   ruleset = #domain_RoutingRulesetRef{id = 4} 
-                }
-            ]}
-        }
-    }}.
 
 withdrawal_misconfig_termset_fixture() ->
     #domain_TermSet{

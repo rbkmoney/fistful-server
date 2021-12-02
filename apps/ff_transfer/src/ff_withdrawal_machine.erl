@@ -188,8 +188,16 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     {ok, {repair_response(), result()}} | {error, repair_error()}.
+process_repair({add_events, _} = Scenario, Machine, _Args, _Opts) ->
+    ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario);
 process_repair(Scenario, Machine, _Args, _Opts) ->
-    ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario).
+    St = ff_machine:collapse(ff_withdrawal, Machine),
+    case ff_withdrawal:start_repair_scenario(Scenario, withdrawal(St)) of
+        {ok, Result} ->
+            {ok, process_result(Result, St)};
+        {error, _Reason} = Error ->
+            {Error, #{}}
+    end.
 
 -spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, ff_withdrawal:start_adjustment_error()}.

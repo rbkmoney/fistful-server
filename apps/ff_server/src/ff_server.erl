@@ -93,7 +93,7 @@ init([]) ->
             {withdrawal_session_management, ff_withdrawal_session_handler},
             {deposit_management, ff_deposit_handler},
             {withdrawal_session_repairer, ff_withdrawal_session_repair},
-            {withdrawal_repairer, ff_withdrawal_repair},
+            {withdrawal_repairer, ff_withdrawal_repair_handler},
             {deposit_repairer, ff_deposit_repair},
             {w2w_transfer_management, ff_w2w_transfer_handler},
             {w2w_transfer_repairer, ff_w2w_transfer_repair}

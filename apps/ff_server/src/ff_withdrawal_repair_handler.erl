@@ -1,4 +1,4 @@
--module(ff_withdrawal_repair).
+-module(ff_withdrawal_repair_handler).
 
 -behaviour(ff_woody_wrapper).
 

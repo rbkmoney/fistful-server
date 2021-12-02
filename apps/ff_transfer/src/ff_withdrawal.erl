@@ -24,6 +24,7 @@
     attempts => attempts(),
     resource => destination_resource(),
     adjustments => adjustments_index(),
+    repair_scenario => repair_scenario(),
     status => status(),
     metadata => metadata(),
     external_id => id()
@@ -204,6 +205,7 @@
 -export([id/1]).
 -export([body/1]).
 -export([status/1]).
+-export([activity/1]).
 -export([route/1]).
 -export([attempts/1]).
 -export([external_id/1]).
@@ -223,6 +225,7 @@
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
 -export([adjustments/1]).
+-export([start_repair_scenario/2]).
 -export([effective_final_cash_flow/1]).
 -export([sessions/1]).
 -export([session_id/1]).
@@ -260,6 +263,7 @@
 -type adjustment() :: ff_adjustment:adjustment().
 -type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
+-type repair_scenario() :: ff_repair:scenario().
 -type currency_id() :: ff_currency:id().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
@@ -355,6 +359,10 @@ status(T) ->
 route(T) ->
     maps:get(route, T, undefined).
 
+-spec activity(withdrawal_state()) -> activity().
+activity(T) ->
+    deduce_activity(T).
+
 -spec attempts(withdrawal_state()) -> attempts().
 attempts(#{attempts := Attempts}) ->
     Attempts;
@@ -446,7 +454,7 @@ create(Params) ->
             destination_id => DestinationID,
             quote => Quote
         }),
-        [
+        Result = [
             {created,
                 genlib_map:compact(#{
                     version => ?ACTUAL_FORMAT_VERSION,
@@ -462,7 +470,8 @@ create(Params) ->
                 })},
             {status_changed, pending},
             {resource_got, Resource}
-        ]
+        ],
+        Result
     end).
 
 create_resource(
@@ -1349,6 +1358,21 @@ get_current_session_status(Withdrawal) ->
         #{} ->
             pending
     end.
+
+-spec start_repair_scenario(any(), withdrawal_state()) -> any() .
+start_repair_scenario(Scenario, St) ->
+    Activity = ff_withdrawal:activity(St),
+    ct:pal(error, "WOLOLO> start_repair_scenario -> Activity is ~p~n", [Activity]),
+    ok = check_activity_compatibility(Scenario, Activity),
+    RepairState = St#{repair_scenario => Scenario},
+    ct:pal(error, "WOLOLO> start_repair_scenario -> RepairState=~p~n", [RepairState]).
+
+check_activity_compatibility({routing, _}, Activity) when Activity =:= routing ->
+    ok;
+%TODO: activity_not_compatible_with_scenario - или что-то другое?
+check_activity_compatibility(Scenario, Activity) ->
+    throw({exception, {activity_not_compatible_with_scenario, Activity, Scenario}}).
+
 
 %% Withdrawal validators
 

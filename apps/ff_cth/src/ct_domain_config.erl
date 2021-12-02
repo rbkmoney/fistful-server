@@ -6,6 +6,8 @@
 
 -export([head/0]).
 
+-export([all/1]).
+-export([checkout_object/2]).
 -export([commit/2]).
 -export([insert/1]).
 -export([update/1]).
@@ -21,6 +23,7 @@
 
 -type revision() :: dmt_client:version().
 -type object() :: dmsl_domain_thrift:'DomainObject'().
+-type object_ref() :: dmt_client:object_ref().
 
 -spec head() -> revision().
 head() ->
@@ -30,6 +33,11 @@ head() ->
 all(Revision) ->
     #'Snapshot'{domain = Domain} = dmt_client:checkout(Revision),
     Domain.
+
+-spec checkout_object(revision(), object_ref()) -> object() | no_return().
+checkout_object(Revision, ObjectRef) ->
+    #'Snapshot'{domain = Domain} = dmt_client:checkout(Revision),
+    maps:get(ObjectRef, Domain).
 
 -spec commit(revision(), dmt_client:commit()) -> revision() | no_return().
 commit(Revision, Commit) ->

@@ -44,6 +44,7 @@
 prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, PartyVarset, DomainRevision),
+    ct:pal(error, "WOLOLO> prepare_routes -> PaymentInstitution=~p~n", [PaymentInstitution]),
     {Routes, RejectContext0} = ff_routing_rule:gather_routes(
         PaymentInstitution,
         withdrawal_routing_rules,
@@ -54,6 +55,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
     case ValidatedRoutes of
         [] ->
             ff_routing_rule:log_reject_context(RejectContext1),
+            ct:pal(error, "WOLOLO> prepare_routes -> Fallback to legacy method of routes gathering"),
             logger:log(info, "Fallback to legacy method of routes gathering"),
             case ff_payment_institution:withdrawal_providers(PaymentInstitution) of
                 {ok, Providers} ->

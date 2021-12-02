@@ -222,6 +222,10 @@ unmarshal(change, {adjustment, Change}) ->
         id => unmarshal(id, Change#wthd_AdjustmentChange.id),
         payload => ff_withdrawal_adjustment_codec:unmarshal(change, Change#wthd_AdjustmentChange.payload)
     }};
+unmarshal(repair_scenario, {routing, RoutingScenarioType}) ->
+    {routing, unmarshal(repair_scenario_routing, RoutingScenarioType)};
+unmarshal(repair_scenario_routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{route = Route}}) ->
+    {route_changed, unmarshal(route, Route)};
 unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
     ff_withdrawal:gen(#{
         id => unmarshal(id, Withdrawal#wthd_Withdrawal.id),

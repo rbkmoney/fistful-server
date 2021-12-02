@@ -43,6 +43,8 @@
 -export([provider_callback_test/1]).
 -export([provider_terminal_terms_merging_test/1]).
 -export([force_status_change_test/1]).
+-export([repair_routing_ok_test/1]).
+
 
 %% Internal types
 
@@ -105,18 +107,22 @@ groups() ->
         ]},
         {withdrawal_repair, [sequence], [
             force_status_change_test
+        ]},
+        {withdrawal_repair_routing, [sequence], [
+            repair_routing_ok_test
         ]}
     ].
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg(
+    Res = ct_helper:makeup_cfg(
         [
             ct_helper:test_case_name(init),
             ct_payment_system:setup()
         ],
         C
-    ).
+    ),
+    Res.
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -129,6 +135,8 @@ init_per_group(withdrawal_repair, C) ->
     Termset = withdrawal_misconfig_termset_fixture(),
     TermsetHierarchy = ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(Termset)]),
     _ = ct_domain_config:update(TermsetHierarchy),
+    C;
+init_per_group(withdrawal_repair_routing, C) ->
     C;
 init_per_group(_, C) ->
     C.
@@ -465,7 +473,9 @@ create_ok_test(C) ->
     ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
     ?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
-    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)).
+    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)),
+    Machine = ff_withdrawal_machine:get(WithdrawalID),
+    ct:pal(error, "WOLOLO> create_ok_test -> Machine=~p~n", [Machine]).
 
 -spec quota_ok_test(config()) -> test_return().
 quota_ok_test(C) ->
@@ -615,6 +625,68 @@ force_status_change_test(C) ->
         {failed, #{code := <<"Withdrawal failed by manual intervention">>}},
         get_withdrawal_status(WithdrawalID)
     ).
+
+-spec repair_routing_ok_test(config()) -> test_return().
+repair_routing_ok_test(C) ->
+    %DomainConfig0 = ct_domain_config:all(ct_domain_config:head()),
+    %#{{routing_rules, #domain_RoutingRulesetRef{id = 1}} := RoutingRules0} = DomainConfig0,
+    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> OldRules=~p~n", [RoutingRules0]),
+    %ct_domain_config:update(withdrawal_misconfig_ruleset_fixture()),
+    _ = withdrawal_misconfig_ruleset_fixture(),
+    %DomainConfig1 = ct_domain_config:all(ct_domain_config:head()),
+    %#{{routing_rules, #domain_RoutingRulesetRef{id = 1}} := RoutingRules1} = DomainConfig1,
+    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> NewRules=~p~n", [RoutingRules1]),
+    Head0 = ct_domain_config:head(),
+    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Head=~p~n", [Head0]),
+    PaymentInstitutionRef = {payment_institution, #domain_PaymentInstitutionRef{id = 1}},
+    {payment_institution, PaymentInstitution0} = ct_domain_config:checkout_object(Head0, PaymentInstitutionRef),
+    ct:pal(error, "WOLOLO> repair_routing_ok_test -> PaymentInstOld=~p~n", [PaymentInstitution0]),
+    Data0 = PaymentInstitution0#domain_PaymentInstitutionObject.data,
+    Data1 = Data0#domain_PaymentInstitution{withdrawal_providers = undefined},
+    PaymentInstitution1 =
+        PaymentInstitution0#domain_PaymentInstitutionObject{
+            data = Data1
+        },
+    ct:pal(error, "WOLOLO> repair_routing_ok_test -> PaymentInstToUpdate=~p~n", [PaymentInstitution1]),
+    %ct_domain_config:remove({payment_institution, PaymentInstitution0}),
+    ct_domain_config:upsert({payment_institution, PaymentInstitution1}),
+    Head1 = ct_domain_config:head(),
+    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Head=~p~n", [Head1]),
+    PaymentInstitution2 = ct_domain_config:checkout_object(Head1, PaymentInstitutionRef),
+    ct:pal(error, "WOLOLO> repair_routing_ok_test -> PaymentInstNew=~p~n", [PaymentInstitution2]),
+
+    Domain = ct_domain_config:all(ct_domain_config:head()),
+    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Domain=~p~n", [Domain]),
+
+
+    Cash = {100, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    await_withdraval_transfer_created(WithdrawalID),
+    Machine = ff_withdrawal_machine:get(WithdrawalID),
+    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Machine=~p~n", [Machine]), 
+    ?assertMatch(pending, get_withdrawal_status(WithdrawalID)),
+    {ok, ok} =
+        call_withdrawal_repair(
+            WithdrawalID,
+            {routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{
+                route = #wthd_Route{
+                        provider_id = 100500,
+                        terminal_id = 100500
+                }
+            }}}
+        ).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
@@ -1006,6 +1078,20 @@ call_withdrawal_repair(SessionID, Scenario) ->
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).
+
+withdrawal_misconfig_ruleset_fixture() ->
+    {routing_rules, #domain_RoutingRulesObject{
+        ref = #domain_RoutingRulesetRef{id = 1},
+        data = #domain_RoutingRuleset{
+            name = <<"Misconfigured Ruleset">>,
+            decisions = {delegates, [
+                #domain_RoutingDelegate{
+                   allowed = {condition, {bin_data, #domain_BinDataCondition{}}},
+                   ruleset = #domain_RoutingRulesetRef{id = 4} 
+                }
+            ]}
+        }
+    }}.
 
 withdrawal_misconfig_termset_fixture() ->
     #domain_TermSet{

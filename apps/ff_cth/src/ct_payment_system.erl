@@ -1,5 +1,7 @@
 -module(ct_payment_system).
 
+-include_lib("ff_cth/include/ct_domain.hrl").
+
 -export([setup/0]).
 -export([setup/1]).
 -export([shutdown/1]).
@@ -31,9 +33,6 @@
 
 -type id() :: binary().
 -type config() :: ct_helper:config().
-
--define(IDENTITY_PROVIDER_NAME, <<"Test provider">>).
-
 
 %% API
 
@@ -78,8 +77,7 @@ start_processing_apps(Options) ->
         woody,
         dmt_client,
         {fistful, [
-            {services, services(Options)},
-            {providers, identity_provider_config(Options)}
+            {services, services(Options)}
         ]},
         ff_server
     ]),
@@ -159,12 +157,12 @@ configure_processing_apps(Options) ->
     ok = create_crunch_identity(
         payment_inst_identity_id(Options),
         provider_identity_id(Options),
-        <<"good-one">>
+        ?IDENTITY_PROVIDER_NAME1
     ),
     ok = create_crunch_identity(
         dummy_payment_inst_identity_id(Options),
         dummy_provider_identity_id(Options),
-        <<"good-two">>
+        ?IDENTITY_PROVIDER_NAME2
     ).
 
 create_crunch_identity(PayInstIID, ProviderIID, ProviderID) ->
@@ -175,7 +173,7 @@ create_crunch_identity(PayInstIID, ProviderIID, ProviderID) ->
 
 create_company_account() ->
     PartyID = create_party(),
-    IdentityID = create_identity(PartyID, ?IDENTITY_PROVIDER_NAME),
+    IdentityID = create_identity(PartyID, ?IDENTITY_PROVIDER_NAME1),
     {ok, Currency} = ff_currency:get(<<"RUB">>),
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     Identity = ff_identity_machine:identity(IdentityMachine),
@@ -209,22 +207,6 @@ do_set_env([], Value, _Env) ->
 do_set_env([Key | Path], Value, Env) ->
     SubEnv = maps:get(Key, Env, #{}),
     Env#{Key => do_set_env(Path, Value, SubEnv)}.
-
-%% Default options
-identity_provider_config(Options) ->
-    Default = #{
-        <<"good-one">> => #{
-            payment_institution_id => 1,
-            contract_template_id => 1,
-            contractor_level => full
-        },
-        <<"good-two">> => #{
-            payment_institution_id => 2,
-            contract_template_id => 1,
-            contractor_level => full
-        }
-    },
-    maps:get(identity_provider_config, Options, Default).
 
 services(Options) ->
     Default = #{
@@ -283,9 +265,11 @@ domain_config(Options, C) ->
             candidate({constant, true}, ?trm(4))
         ]},
 
-
     Default = [
-        ct_domain:globals(?eas(1), [?payinst(1)], [?identprov(?IDENTITY_PROVIDER_NAME)]),
+        ct_domain:globals(?eas(1), [?payinst(1)], [
+            ?identprov(?IDENTITY_PROVIDER_NAME1),
+            ?identprov(?IDENTITY_PROVIDER_NAME2)
+        ]),
         ct_domain:external_account_set(?eas(1), <<"Default">>, ?cur(<<"RUB">>), C),
 
         routing_ruleset(?ruleset(1), <<"WithdrawalRuleset#1">>, WithdrawalDecision1),
@@ -602,7 +586,8 @@ domain_config(Options, C) ->
         ct_domain:payment_system(?pmtsys(<<"VISA">>), <<"VISA">>),
         ct_domain:payment_system(?pmtsys(<<"NSPK MIR">>), <<"NSPK MIR">>),
 
-        identity_provider(?identprov(?IDENTITY_PROVIDER_NAME), ?payinst(1), ?tmpl(1))
+        identity_provider(?identprov(?IDENTITY_PROVIDER_NAME1), ?payinst(1), ?tmpl(1)),
+        identity_provider(?identprov(?IDENTITY_PROVIDER_NAME2), ?payinst(2), ?tmpl(1))
     ],
     maps:get(domain_config, Options, Default).
 

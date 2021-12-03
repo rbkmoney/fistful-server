@@ -32,9 +32,9 @@ handle_function_('GetProvider', {ID}, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_ProviderNotFound{})
     end;
-handle_function_('ListProviders', _, Opts) ->
-    {ok, Providers} = ff_provider:list(Opts),
-    marshal_providers(Providers).
+handle_function_('ListProviders', _, _Opts) ->
+    Providers = ff_provider:list(),
+    {ok, marshal_providers(Providers)}.
 
 %%
 

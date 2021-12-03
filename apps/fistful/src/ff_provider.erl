@@ -57,8 +57,8 @@
 -spec contract_template(provider()) -> contract_template_ref().
 -spec contractor_level(provider()) -> contractor_level().
 
-id(#{id := ID}) ->
-    ID.
+id(#{id := Ref}) ->
+    Ref#domain_IdentityProviderRef.name.
 
 name(#{payinst := PI}) ->
     PI#domain_PaymentInstitution.name.
@@ -81,7 +81,8 @@ contractor_level(#{contractor_level := Level}) ->
 list() ->
     ProviderRefs = list_providers(),
     [
-        Provider || Ref <- ProviderRefs,
+        Provider
+     || Ref <- ProviderRefs,
         {ok, Provider} <- [ff_provider:get(Ref)]
     ].
 

@@ -437,7 +437,8 @@ timed_term_set(TermSet) ->
         terms = TermSet
     }.
 
--spec globals(?dtp('ExternalAccountSetRef'), [?dtp('PaymentInstitutionRef')], [?dtp('IdentityProviderRef')]) -> object().
+-spec globals(?dtp('ExternalAccountSetRef'), [?dtp('PaymentInstitutionRef')], [?dtp('IdentityProviderRef')]) ->
+    object().
 globals(EASRef, PIRefs, IPRefs) ->
     {globals, #domain_GlobalsObject{
         ref = ?glob(),

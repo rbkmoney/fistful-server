@@ -1,5 +1,6 @@
 -module(w2w_transfer_SUITE).
 
+-include_lib("ff_cth/include/ct_domain.hrl").
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
@@ -304,7 +305,7 @@ create_party(_C) ->
     ID.
 
 create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, C).
+    create_identity(Party, ?IDENTITY_PROVIDER_NAME1, C).
 
 create_identity(Party, ProviderID, C) ->
     create_identity(Party, <<"Identity Name">>, ProviderID, C).

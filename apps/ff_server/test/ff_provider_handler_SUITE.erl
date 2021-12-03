@@ -1,5 +1,6 @@
 -module(ff_provider_handler_SUITE).
 
+-include_lib("ff_cth/include/ct_domain.hrl").
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_provider_thrift.hrl").
 
@@ -73,8 +74,8 @@ end_per_testcase(_Name, _C) ->
 
 -spec get_provider_ok(config()) -> test_return().
 get_provider_ok(_C) ->
-    {ok, Provider} = call_service('GetProvider', {<<"good-one">>}),
-    ?assertEqual(<<"good-one">>, Provider#provider_Provider.id),
+    {ok, Provider} = call_service('GetProvider', {?IDENTITY_PROVIDER_NAME1}),
+    ?assertEqual(?IDENTITY_PROVIDER_NAME1, Provider#provider_Provider.id),
     ?assertEqual(<<"Generic Payment Institution">>, Provider#provider_Provider.name),
     ?assertEqual([<<"RUS">>], Provider#provider_Provider.residences).
 

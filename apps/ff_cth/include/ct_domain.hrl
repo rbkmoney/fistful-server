@@ -3,6 +3,9 @@
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
+-define(IDENTITY_PROVIDER_NAME1, <<"Test provider payinst#1">>).
+-define(IDENTITY_PROVIDER_NAME2, <<"Test provider payinst#2">>).
+
 -define(ordset(Es), ordsets:from_list(Es)).
 
 -define(glob(), #domain_GlobalsRef{}).

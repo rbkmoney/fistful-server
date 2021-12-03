@@ -162,7 +162,7 @@ session_fail_test(C) ->
     Party = create_party(C),
     Currency = <<"RUB">>,
     WithdrawalCash = {100, Currency},
-    IdentityID = create_identity(Party, <<"good-two">>, C),
+    IdentityID = create_identity(Party, ?IDENTITY_PROVIDER_NAME2, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
     ok = await_wallet_balance({0, Currency}, WalletID),
     DestinationID = create_destination(IdentityID, undefined, C),
@@ -382,7 +382,7 @@ create_identity_providers_mismatch_error_test(C) ->
         destination_id := DestinationID
     } = prepare_standard_environment(Cash, C),
     Party = create_party(C),
-    IdentityID = create_identity(Party, <<"good-two">>, C),
+    IdentityID = create_identity(Party, ?IDENTITY_PROVIDER_NAME2, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, <<"RUB">>, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
@@ -392,7 +392,7 @@ create_identity_providers_mismatch_error_test(C) ->
         body => {100, <<"RUB">>}
     },
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    ?assertMatch({error, {identity_providers_mismatch, {<<"good-two">>, <<"good-one">>}}}, Result).
+    ?assertMatch({error, {identity_providers_mismatch, {?IDENTITY_PROVIDER_NAME2, ?IDENTITY_PROVIDER_NAME1}}}, Result).
 
 -spec create_destination_resource_notfound_test(config()) -> test_return().
 create_destination_resource_notfound_test(C) ->
@@ -498,7 +498,7 @@ crypto_quota_ok_test(C) ->
     Currency = <<"RUB">>,
     Cash = {100, Currency},
     Party = create_party(C),
-    IdentityID = create_identity(Party, <<"good-two">>, C),
+    IdentityID = create_identity(Party, ?IDENTITY_PROVIDER_NAME2, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
     ok = await_wallet_balance({0, Currency}, WalletID),
     DestinationID = create_crypto_destination(IdentityID, C),
@@ -835,7 +835,7 @@ create_party(_C) ->
     ID.
 
 create_person_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, C).
+    create_identity(Party, ?IDENTITY_PROVIDER_NAME1, C).
 
 create_identity(Party, ProviderID, C) ->
     create_identity(Party, <<"Identity Name">>, ProviderID, C).

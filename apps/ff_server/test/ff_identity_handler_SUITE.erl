@@ -1,5 +1,6 @@
 -module(ff_identity_handler_SUITE).
 
+-include_lib("ff_cth/include/ct_domain.hrl").
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 
@@ -63,7 +64,7 @@ create_identity_ok(_C) ->
     PartyID = create_party(),
     EID = genlib:unique(),
     Name = <<"Identity Name">>,
-    ProvID = <<"good-one">>,
+    ProvID = ?IDENTITY_PROVIDER_NAME1,
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Identity = create_identity(EID, Name, PartyID, ProvID, Ctx, Metadata),
@@ -87,7 +88,7 @@ get_event_unknown_identity_ok(_C) ->
     EID = genlib:unique(),
     PID = create_party(),
     Name = <<"Identity Name">>,
-    ProvID = <<"good-one">>,
+    ProvID = ?IDENTITY_PROVIDER_NAME1,
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     create_identity(EID, Name, PID, ProvID, Ctx, Metadata),
     Range = #'EventRange'{
@@ -128,7 +129,3 @@ create_party() ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
-
-%% CONFIGS
-
--include_lib("ff_cth/include/ct_domain.hrl").

@@ -3,6 +3,7 @@
 -include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("ff_cth/include/ct_domain.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -335,7 +336,7 @@ deposit_withdrawal_to_crypto_wallet(C) ->
 
 deposit_withdrawal_to_digital_wallet(C) ->
     Party = create_party(C),
-    IID = create_identity(Party, <<"good-two">>, C),
+    IID = create_identity(Party, ?IDENTITY_PROVIDER_NAME2, C),
     WalID = create_wallet(IID, <<"WalletName">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = create_source(IID, C),
@@ -347,7 +348,7 @@ deposit_withdrawal_to_digital_wallet(C) ->
 
 deposit_quote_withdrawal_ok(C) ->
     Party = create_party(C),
-    IID = create_identity(Party, <<"good-two">>, C),
+    IID = create_identity(Party, ?IDENTITY_PROVIDER_NAME2, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
     SrcID = create_source(IID, C),
@@ -380,7 +381,7 @@ create_party(_C) ->
     ID.
 
 create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, C).
+    create_identity(Party, ?IDENTITY_PROVIDER_NAME1, C).
 
 create_identity(Party, ProviderID, C) ->
     create_identity(Party, <<"Identity Name">>, ProviderID, C).

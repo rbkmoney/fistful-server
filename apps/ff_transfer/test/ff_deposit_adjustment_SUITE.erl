@@ -1,6 +1,7 @@
 -module(ff_deposit_adjustment_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
+-include_lib("ff_cth/include/ct_domain.hrl").
 
 %% Common test API
 
@@ -384,7 +385,7 @@ create_party(_C) ->
     ID.
 
 create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, C).
+    create_identity(Party, ?IDENTITY_PROVIDER_NAME1, C).
 
 create_identity(Party, ProviderID, C) ->
     create_identity(Party, <<"Identity Name">>, ProviderID, C).

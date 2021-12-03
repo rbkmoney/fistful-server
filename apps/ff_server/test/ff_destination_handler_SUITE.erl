@@ -1,5 +1,6 @@
 -module(ff_destination_handler_SUITE).
 
+-include_lib("ff_cth/include/ct_domain.hrl").
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -export([all/0]).
@@ -180,7 +181,7 @@ create_party(_C) ->
     ID.
 
 create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, C).
+    create_identity(Party, ?IDENTITY_PROVIDER_NAME1, C).
 
 create_identity(Party, ProviderID, C) ->
     create_identity(Party, <<"Identity Name">>, ProviderID, C).

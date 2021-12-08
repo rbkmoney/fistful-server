@@ -2,6 +2,7 @@
 
 -export([apply_scenario/3]).
 -export([apply_scenario/4]).
+-export([validate_scenario_result/3]).
 
 %% Types
 
@@ -79,6 +80,13 @@ apply_scenario(Mod, Machine, Scenario, ScenarioProcessors) ->
         {Response, Result} = unwrap(apply_processor(Processor, ScenarioArgs, Machine)),
         valid = unwrap(validate_result(Mod, Machine, Result)),
         {Response, Result}
+    end).
+
+-spec validate_scenario_result(module(), machine(), result()) ->
+    {ok, valid} | {error, invalid_result_error()}.
+validate_scenario_result(Mod, Machine, Result) ->
+    do(fun() ->
+        unwrap(validate_result(Mod, Machine, Result))
     end).
 
 %% Internals

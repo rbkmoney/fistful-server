@@ -626,6 +626,11 @@ force_status_change_test(C) ->
         get_withdrawal_status(WithdrawalID)
     ).
 
+% The point of the test is to fail routing stage
+% with internal error which causes to machine failing
+% and then to repair machine with succeeded routing result.
+% Routing stage fail implemented by removing withdrawal_selector from
+% payment institution. That way valid until old routing is in work.
 -spec repair_routing_ok_test(config()) -> test_return().
 repair_routing_ok_test(C) ->
     PaymentInstitutionRef = {payment_institution, #domain_PaymentInstitutionRef{id = 1}},
@@ -652,25 +657,48 @@ repair_routing_ok_test(C) ->
         external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    %TODO: hardcode timer is not valid way to ensure of failed machine
+    timer:sleep(1000),
+
+    {ok, ok} =
+        call_withdrawal_repair(
+            WithdrawalID,
+            {routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{
+                route = #wthd_Route{
+                        provider_id = 100500,
+                        terminal_id = 100500
+                }
+            }}}
+        ),
+    timer:sleep(1000),
+    {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
+    ct:pal("WOLOLO> repair_routing_ok_test -> Events=~p~n", [Events]).
+
+    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Withdrawal=~p~n", [Withdrawal]), 
+    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Machine=~p~n", [Machine]), 
+    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Withdrawal=~p~n", [Withdrawal]), 
+    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Machine=~p~n", [Machine]), 
+    %timer:sleep(5000),
     %await_withdraval_transfer_created(WithdrawalID),
-    timer:sleep(5000),
-    Machine = ff_withdrawal_machine:get(WithdrawalID),
-    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Machine=~p~n", [Machine]), 
-    St = ff_machine:collapse(ff_withdrawal, Machine),
-    Withdrawal = ff_withdrawal_machine:withdrawal(St),
-    ct:pal(error, "WOLOLO> repair_routing_ok_test -> Withdrawal=~p~n", [Withdrawal]), 
-    ok.
+    %await_withdraval_transfer_created(WithdrawalID),
     %?assertMatch(pending, get_withdrawal_status(WithdrawalID)),
-    %{ok, ok} =
-    %    call_withdrawal_repair(
-    %        WithdrawalID,
-    %        {routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{
-    %            route = #wthd_Route{
-    %                    provider_id = 100500,
-    %                    terminal_id = 100500
-    %            }
-    %        }}}
-    %    ).
+    %?assertEqual(pending, await_withdrawal_pending(WithdrawalID)),
+    %Machine = ff_withdrawal_machine:get(WithdrawalID),
+    %St = ff_machine:collapse(ff_withdrawal, Machine),
+    %Withdrawal = ff_withdrawal_machine:withdrawal(St),
+    %{ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
+
+    %{ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
+    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Events=~p~n", [Events]), 
+    %W0 = ff_withdrawal_machine:withdrawal(WithdrawalID),
+    %ct:pal("WOLOLO> repair_routing_ok_test -> W0=~p~n", [W0]), 
+    %St0 = ff_withdrawal_machine:get(WithdrawalID),
+    %ct:pal("WOLOLO> repair_routing_ok_test -> St0=~p~n", [St0]), 
+
+    %W1 = ff_withdrawal_machine:withdrawal(WithdrawalID),
+    %ct:pal("WOLOLO> repair_routing_ok_test -> W1=~p~n", [W1]), 
+    %St1 = ff_withdrawal_machine:get(WithdrawalID),
+    %ct:pal("WOLOLO> repair_routing_ok_test -> St1=~p~n", [St1]), 
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
@@ -835,6 +863,34 @@ get_session_adapter_state(SessionID) ->
 get_session_id(WithdrawalID) ->
     Withdrawal = get_withdrawal(WithdrawalID),
     ff_withdrawal:session_id(Withdrawal).
+
+%await_withdraval_create(WithdrawalID) ->
+%    ct_helper:await(
+%        created,
+%        fun() ->
+%            {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
+%            case search_create_event(Events) of
+%                false ->
+%                    not_created;
+%                {value, _} ->
+%                    created
+%            end
+%        end,
+%        genlib_retry:linear(20, 1000)
+%    ).
+%
+%search_create_event(Events) ->
+%    lists:search(
+%        fun(T) ->
+%            case T of
+%                {_N, {ev, _Timestamp, {status_changed, pending}}} ->
+%                    true;
+%                _Other ->
+%                    false
+%            end
+%        end,
+%        Events
+%    ).
 
 await_withdraval_transfer_created(WithdrawalID) ->
     ct_helper:await(

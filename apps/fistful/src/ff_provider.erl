@@ -89,8 +89,8 @@ list() ->
 -spec get(id() | provider_ref()) ->
     {ok, provider()}
     | {error, notfound}.
-get(IdentityProviderName) when is_binary(IdentityProviderName) ->
-    ff_provider:get(#domain_IdentityProviderRef{name = IdentityProviderName});
+get(ID) when is_binary(ID) ->
+    ff_provider:get(#domain_IdentityProviderRef{id = ID});
 get(IdentityProviderRef) ->
     do(fun() ->
         % TODO

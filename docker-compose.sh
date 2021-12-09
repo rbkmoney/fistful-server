@@ -51,7 +51,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:c39b52984cd205faba34dd4bfe5df7e3ef7fa482
+    image: dr2.rbkmoney.com/rbkmoney/dominant:5d719817065cf5c8c88db3d86588debb73dee2be
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -162,7 +162,7 @@ services:
       retries: 10
 
   party-management:
-    image: dr2.rbkmoney.com/rbkmoney/party-management:2549f46e12adf7bf184181ff0b854777a09021b2
+    image: dr2.rbkmoney.com/rbkmoney/party-management:bb344c459fb694e2fa1af785c75ade8f6033fe42
     command: /opt/party-management/bin/party-management foreground
     depends_on:
       - machinegun

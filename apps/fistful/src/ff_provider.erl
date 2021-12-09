@@ -58,7 +58,7 @@
 -spec contractor_level(provider()) -> contractor_level().
 
 id(#{id := Ref}) ->
-    Ref#domain_IdentityProviderRef.name.
+    Ref#domain_IdentityProviderRef.id.
 
 name(#{payinst := PI}) ->
     PI#domain_PaymentInstitution.name.

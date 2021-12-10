@@ -189,13 +189,10 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     {ok, {repair_response(), result()}} | {error, repair_error()}.
 process_repair({add_events, _} = Scenario, Machine, _Args, _Opts) ->
-    ct:pal("WOLOLO> process_repair -> apply_scenario Scenario=~p~n", [Scenario]),
-    Retval = ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario),
-    ct:pal("WOLOLO> process_repair -> apply_scenario Retval=~p~n", [Retval]),
-    Retval;
+    ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario);
 process_repair(Scenario, Machine, _Args, _Opts) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
-    {ok, ScenarioResult} = ff_withdrawal:start_repair_scenario(Scenario, withdrawal(St)),
+    {ok, ScenarioResult} = ff_withdrawal:start_repair(Scenario, withdrawal(St)),
     ct:pal("WOLOLO> process_repair -> ScenarioResult=~p~n", [ScenarioResult]),
     ProcessedResult = process_result(ScenarioResult, St),
     ct:pal("WOLOLO> process_repair -> ProcessedResult=~p~n", [ProcessedResult]),

@@ -173,7 +173,7 @@
 -type invalid_withdrawal_status_error() ::
     {invalid_withdrawal_status, status()}.
 
--type action() :: sleep | continue | undefined.
+-type action() :: sleep | continue | undefined | {set_timer, integer()}.
 
 -export_type([withdrawal/0]).
 -export_type([withdrawal_state/0]).
@@ -227,7 +227,7 @@
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
 -export([adjustments/1]).
--export([start_repair_scenario/2]).
+-export([start_repair/2]).
 -export([effective_final_cash_flow/1]).
 -export([sessions/1]).
 -export([session_id/1]).
@@ -548,6 +548,20 @@ is_finished(#{status := {failed, _}}) ->
 is_finished(#{status := pending}) ->
     false.
 
+-spec start_repair(repair_scenario(), withdrawal_state()) -> {ok, process_result()}.
+start_repair(Scenario, St) ->
+    Activity = ff_withdrawal:activity(St),
+    ok = check_activity_compatibility(Scenario, Activity),
+    RepairState = St#{repair_scenario => Scenario},
+    ct:pal("WOLOLO> start_repair_scenario -> RepairState=~p~n", [RepairState]),
+    process_transfer(RepairState).
+
+check_activity_compatibility({routing, _}, Activity) when Activity =:= routing ->
+    ok;
+%TODO: activity_not_compatible_with_scenario - или что-то другое?
+check_activity_compatibility(Scenario, Activity) ->
+    throw({exception, {activity_not_compatible_with_scenario, Activity, Scenario}}).
+
 %% Transfer callbacks
 
 -spec process_transfer(withdrawal_state()) -> process_result().
@@ -556,9 +570,8 @@ process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
     Result = case Withdrawal of
         #{repair_scenario := RepairScenario} ->
-            do_repair_scenario(RepairScenario);
+            do_process_repair(RepairScenario);
         _ ->
-            ct:pal("WOLOLO> process_transfer -> do_process_transfer~n", []),
             do_process_transfer(Activity, Withdrawal)
     end,
     ct:pal("WOLOLO> process_transfer -> Result = ~p~n", [Result]),
@@ -749,6 +762,15 @@ do_finished_activity(#{status := succeeded, p_transfer := committed}) ->
 do_finished_activity(#{status := {failed, _}, p_transfer := cancelled}) ->
     stop.
 
+-spec do_process_repair(repair_scenario()) -> process_result().
+do_process_repair(Scenario) ->
+    ScenarioResult = process_repair(Scenario),
+    R = do(fun() ->
+        {{set_timer, 0}, [ScenarioResult]}
+    end),
+    ct:pal("WOLOLO> do_process_repair -> Result=~p~n", [R]),
+    R.
+
 -spec do_process_transfer(activity(), withdrawal_state()) -> process_result().
 do_process_transfer(routing, Withdrawal) ->
     ct:pal("WOLOLO> do_process_transfer -> routing~n", []),
@@ -784,6 +806,10 @@ do_process_transfer(adjustment, Withdrawal) ->
     process_adjustment(Withdrawal);
 do_process_transfer(stop, _Withdrawal) ->
     {undefined, []}.
+
+-spec process_repair(repair_scenario()) -> process_result().
+process_repair({routing, {route_changed, Route}}) ->
+    {route_changed, Route}.
 
 -spec process_routing(withdrawal_state()) -> process_result().
 process_routing(Withdrawal) ->
@@ -1373,32 +1399,6 @@ get_current_session_status(Withdrawal) ->
         #{} ->
             pending
     end.
-
-
--spec start_repair_scenario(any(), withdrawal_state()) -> any() .
-start_repair_scenario(Scenario, St) ->
-    Activity = ff_withdrawal:activity(St),
-    ct:pal("WOLOLO> start_repair_scenario -> Activity is ~p~n", [Activity]),
-    ok = check_activity_compatibility(Scenario, Activity),
-    RepairState = St#{repair_scenario => Scenario},
-    ct:pal("WOLOLO> start_repair_scenario -> RepairState=~p~n", [RepairState]),
-    process_transfer(RepairState).
-
-do_repair_scenario({routing, {route_changed, Route}} = Scenario) ->
-    do(fun() ->
-        ct:pal("WOLOLO> do_repair_scenario -> Scenario=~p~n", [Scenario]),
-        Result = {{set_timer, 0}, [
-            {route_changed, Route}
-        ]},
-        ct:pal("WOLOLO> do_repair_scenario -> Result=~p~n", [Result]),
-        Result
-    end).
-
-check_activity_compatibility({routing, _}, Activity) when Activity =:= routing ->
-    ok;
-%TODO: activity_not_compatible_with_scenario - или что-то другое?
-check_activity_compatibility(Scenario, Activity) ->
-    throw({exception, {activity_not_compatible_with_scenario, Activity, Scenario}}).
 
 
 %% Withdrawal validators

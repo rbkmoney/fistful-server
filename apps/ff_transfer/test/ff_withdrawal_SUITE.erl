@@ -43,7 +43,8 @@
 -export([provider_callback_test/1]).
 -export([provider_terminal_terms_merging_test/1]).
 -export([force_status_change_test/1]).
--export([repair_routing_ok_test/1]).
+-export([repair_routing_changed_ok_test/1]).
+-export([repair_routing_not_found_ok_test/1]).
 
 
 %% Internal types
@@ -109,7 +110,8 @@ groups() ->
             force_status_change_test
         ]},
         {withdrawal_repair_routing, [sequence], [
-            repair_routing_ok_test
+            repair_routing_changed_ok_test,
+            repair_routing_not_found_ok_test
         ]}
     ].
 
@@ -132,11 +134,20 @@ end_per_suite(C) ->
 
 -spec init_per_group(group_name(), config()) -> config().
 init_per_group(withdrawal_repair, C) ->
+% The point of the group is to fail withdrawal machine,
+% and to test repair call with add_events scenario in which
+% withdrawal status changed. Machine is failed by misconfigured termset.
     Termset = withdrawal_misconfig_termset_fixture(),
     TermsetHierarchy = ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(Termset)]),
     _ = ct_domain_config:update(TermsetHierarchy),
     C;
 init_per_group(withdrawal_repair_routing, C) ->
+% The point the group is to fail some withdrawal stage
+% with internal error which causes to withdrawal machine failing
+% and then to repair machine with predetermined result.
+% Routing stage fail implemented by removing withdrawal_selector from
+% payment institution. That way valid until legacy selectors-routing is in work,
+% its necessary to find other way for failing withdrawal machine with new routing based on rulesets
     C;
 init_per_group(_, C) ->
     C.
@@ -626,13 +637,14 @@ force_status_change_test(C) ->
         get_withdrawal_status(WithdrawalID)
     ).
 
-% The point of the test is to fail routing stage
+% The point of this case is to fail routing stage
 % with internal error which causes to machine failing
-% and then to repair machine with succeeded routing result.
+% and then to repair machine with succeeded route changed result.
 % Routing stage fail implemented by removing withdrawal_selector from
-% payment institution. That way valid until old routing is in work.
--spec repair_routing_ok_test(config()) -> test_return().
-repair_routing_ok_test(C) ->
+% payment institution. That way valid until legacy selectors-routing is in work,
+% its necessary to find other way for failing withdrawal machine with new routing based on rulesets
+-spec repair_routing_changed_ok_test(config()) -> test_return().
+repair_routing_changed_ok_test(C) ->
     PaymentInstitutionRef = {payment_institution, #domain_PaymentInstitutionRef{id = 1}},
     Head0 = ct_domain_config:head(),
     {payment_institution, PaymentInstitution0} = ct_domain_config:checkout_object(Head0, PaymentInstitutionRef),
@@ -659,46 +671,70 @@ repair_routing_ok_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     %TODO: hardcode timer is not valid way to ensure of failed machine
     timer:sleep(1000),
-
     {ok, ok} =
         call_withdrawal_repair(
             WithdrawalID,
             {routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{
                 route = #wthd_Route{
-                        provider_id = 100500,
-                        terminal_id = 100500
+                        provider_id = 1,
+                        terminal_id = 1
                 }
             }}}
+        ),
+    ?assertEqual(
+        route_changed,
+        await_route_changed_event(
+            #{provider_id => 1, terminal_id => 1},
+            WithdrawalID
+        )
+    ),
+    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
+    {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
+    ct:pal("WOLOLO> repair_routing_ok_test -> Events=~p~n", [Events]).
+
+% The point of this case is to fail routing stage
+% with internal error which causes to machine failing
+% and then to repair machine with route_not_found result.
+% Routing stage fail implemented by removing withdrawal_selector from
+% payment institution. That way valid until legacy selectors-routing is in work,
+% its necessary to find other way for failing withdrawal machine with new routing based on rulesets
+-spec repair_routing_not_found_ok_test(config()) -> test_return().
+repair_routing_not_found_ok_test(C) ->
+    PaymentInstitutionRef = {payment_institution, #domain_PaymentInstitutionRef{id = 1}},
+    Head0 = ct_domain_config:head(),
+    {payment_institution, PaymentInstitution0} = ct_domain_config:checkout_object(Head0, PaymentInstitutionRef),
+    Data0 = PaymentInstitution0#domain_PaymentInstitutionObject.data,
+    Data1 = Data0#domain_PaymentInstitution{withdrawal_providers = undefined},
+    PaymentInstitution1 =
+        PaymentInstitution0#domain_PaymentInstitutionObject{
+            data = Data1
+        },
+    ct_domain_config:upsert({payment_institution, PaymentInstitution1}),
+    Cash = {100, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    %TODO: hardcode timer is not valid way to ensure of failed machine
+    timer:sleep(1000),
+    {ok, ok} =
+        call_withdrawal_repair(
+            WithdrawalID,
+            {routing, {route_changed, #wthd_WithdrawalRepairRouteNotFound{}}}
         ),
     timer:sleep(1000),
     {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
     ct:pal("WOLOLO> repair_routing_ok_test -> Events=~p~n", [Events]).
 
-    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Withdrawal=~p~n", [Withdrawal]), 
-    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Machine=~p~n", [Machine]), 
-    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Withdrawal=~p~n", [Withdrawal]), 
-    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Machine=~p~n", [Machine]), 
-    %timer:sleep(5000),
-    %await_withdraval_transfer_created(WithdrawalID),
-    %await_withdraval_transfer_created(WithdrawalID),
-    %?assertMatch(pending, get_withdrawal_status(WithdrawalID)),
-    %?assertEqual(pending, await_withdrawal_pending(WithdrawalID)),
-    %Machine = ff_withdrawal_machine:get(WithdrawalID),
-    %St = ff_machine:collapse(ff_withdrawal, Machine),
-    %Withdrawal = ff_withdrawal_machine:withdrawal(St),
-    %{ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
-
-    %{ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
-    %ct:pal(error, "WOLOLO> repair_routing_ok_test -> Events=~p~n", [Events]), 
-    %W0 = ff_withdrawal_machine:withdrawal(WithdrawalID),
-    %ct:pal("WOLOLO> repair_routing_ok_test -> W0=~p~n", [W0]), 
-    %St0 = ff_withdrawal_machine:get(WithdrawalID),
-    %ct:pal("WOLOLO> repair_routing_ok_test -> St0=~p~n", [St0]), 
-
-    %W1 = ff_withdrawal_machine:withdrawal(WithdrawalID),
-    %ct:pal("WOLOLO> repair_routing_ok_test -> W1=~p~n", [W1]), 
-    %St1 = ff_withdrawal_machine:get(WithdrawalID),
-    %ct:pal("WOLOLO> repair_routing_ok_test -> St1=~p~n", [St1]), 
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
@@ -864,33 +900,34 @@ get_session_id(WithdrawalID) ->
     Withdrawal = get_withdrawal(WithdrawalID),
     ff_withdrawal:session_id(Withdrawal).
 
-%await_withdraval_create(WithdrawalID) ->
-%    ct_helper:await(
-%        created,
-%        fun() ->
-%            {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
-%            case search_create_event(Events) of
-%                false ->
-%                    not_created;
-%                {value, _} ->
-%                    created
-%            end
-%        end,
-%        genlib_retry:linear(20, 1000)
-%    ).
-%
-%search_create_event(Events) ->
-%    lists:search(
-%        fun(T) ->
-%            case T of
-%                {_N, {ev, _Timestamp, {status_changed, pending}}} ->
-%                    true;
-%                _Other ->
-%                    false
-%            end
-%        end,
-%        Events
-%    ).
+await_route_changed_event(Route, WithdrawalID) ->
+    ct_helper:await(
+        route_changed,
+        fun() ->
+            {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
+            case search_route_changed_event(Route, Events) of
+                false ->
+                    event_not_found;
+                {value, _} ->
+                    route_changed
+            end
+        end,
+        genlib_retry:linear(20, 1000)
+    ).
+
+search_route_changed_event(#{provider_id := ProviderID, terminal_id := TerminalID}, Events) ->
+    lists:search(
+        fun(T) ->
+            case T of
+                {_N, {ev, _Timestamp, {route_changed,
+                    #{provider_id := ProviderID, terminal_id := TerminalID}}}} ->
+                    true;
+                _Other ->
+                    false
+            end
+        end,
+        Events
+    ).
 
 await_withdraval_transfer_created(WithdrawalID) ->
     ct_helper:await(

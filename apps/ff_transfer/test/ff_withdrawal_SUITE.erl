@@ -674,7 +674,7 @@ repair_routing_changed_ok_test(C) ->
     {ok, ok} =
         call_withdrawal_repair(
             WithdrawalID,
-            {routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{
+            {routing, {route_changed, #wthd_RoutingRepairRouteChanged{
                 route = #wthd_Route{
                         provider_id = 1,
                         terminal_id = 1
@@ -729,9 +729,9 @@ repair_routing_not_found_ok_test(C) ->
     {ok, ok} =
         call_withdrawal_repair(
             WithdrawalID,
-            {routing, {route_changed, #wthd_WithdrawalRepairRouteNotFound{}}}
+            {routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{reason = <<"SukaBlya">>}}}
         ),
-    timer:sleep(1000),
+    timer:sleep(5000),
     {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
     ct:pal("WOLOLO> repair_routing_ok_test -> Events=~p~n", [Events]).
 

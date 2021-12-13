@@ -313,7 +313,7 @@
 
 -type fail_type() ::
     limit_check
-    | route_not_found
+    | route_not_found | {route_not_found, binary()}
     | {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}
     | session.
 
@@ -551,14 +551,15 @@ is_finished(#{status := pending}) ->
 -spec start_repair(repair_scenario(), withdrawal_state()) -> {ok, process_result()}.
 start_repair(Scenario, St) ->
     Activity = ff_withdrawal:activity(St),
+    %TODO: после вызова process_transfer активити заново высчитывается, надо продумать правильно ли здесь проверять совместимость со сценарием
     ok = check_activity_compatibility(Scenario, Activity),
     RepairState = St#{repair_scenario => Scenario},
     ct:pal("WOLOLO> start_repair_scenario -> RepairState=~p~n", [RepairState]),
-    process_transfer(RepairState).
+    {ok, process_transfer(RepairState)}.
 
 check_activity_compatibility({routing, _}, Activity) when Activity =:= routing ->
     ok;
-%TODO: activity_not_compatible_with_scenario - или что-то другое?
+%TODO: activity_not_compatible_with_scenario - или что-то другое? Реализовать в протоколе и тут
 check_activity_compatibility(Scenario, Activity) ->
     throw({exception, {activity_not_compatible_with_scenario, Activity, Scenario}}).
 
@@ -570,7 +571,7 @@ process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
     Result = case Withdrawal of
         #{repair_scenario := RepairScenario} ->
-            do_process_repair(RepairScenario);
+            do_process_repair(RepairScenario, Withdrawal);
         _ ->
             do_process_transfer(Activity, Withdrawal)
     end,
@@ -762,12 +763,9 @@ do_finished_activity(#{status := succeeded, p_transfer := committed}) ->
 do_finished_activity(#{status := {failed, _}, p_transfer := cancelled}) ->
     stop.
 
--spec do_process_repair(repair_scenario()) -> process_result().
-do_process_repair(Scenario) ->
-    ScenarioResult = process_repair(Scenario),
-    R = do(fun() ->
-        {{set_timer, 0}, [ScenarioResult]}
-    end),
+-spec do_process_repair(repair_scenario(), withdrawal_state()) -> process_result().
+do_process_repair(Scenario, Withdrawal) ->
+    R = process_repair(Scenario, Withdrawal),
     ct:pal("WOLOLO> do_process_repair -> Result=~p~n", [R]),
     R.
 
@@ -807,9 +805,11 @@ do_process_transfer(adjustment, Withdrawal) ->
 do_process_transfer(stop, _Withdrawal) ->
     {undefined, []}.
 
--spec process_repair(repair_scenario()) -> process_result().
-process_repair({routing, {route_changed, Route}}) ->
-    {route_changed, Route}.
+-spec process_repair(repair_scenario(), withdrawal_state()) -> process_result().
+process_repair({routing, {route_changed, Route}}, _Withdrawal) ->
+    {{set_timer, 0}, [{route_changed, Route}]};
+process_repair({routing, {route_not_found, _} = FailType}, Withdrawal) ->
+    process_transfer_fail(FailType, Withdrawal).
 
 -spec process_routing(withdrawal_state()) -> process_result().
 process_routing(Withdrawal) ->
@@ -1777,9 +1777,11 @@ build_failure(limit_check, Withdrawal) ->
             }
     end;
 build_failure(route_not_found, _Withdrawal) ->
-    #{
-        code => <<"no_route_found">>
-    };
+    #{code => <<"no_route_found">>};
+build_failure({route_not_found, undefined}, Withdrawal) ->
+    build_failure(route_not_found, Withdrawal);
+build_failure({route_not_found, Reason}, _Withdrawal) ->
+    #{code => Reason};
 build_failure({inconsistent_quote_route, {Type, FoundID}}, Withdrawal) ->
     Details =
         {inconsistent_quote_route, #{

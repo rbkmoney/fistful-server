@@ -203,6 +203,12 @@ unmarshal(repair_scenario, {add_events, #wthd_AddEventsRepair{events = Events, a
             events => unmarshal({list, change}, Events),
             action => maybe_unmarshal(complex_action, Action)
         })};
+unmarshal(repair_scenario, {routing, RoutingScenarioType}) ->
+    {routing, unmarshal(repair_scenario_routing, RoutingScenarioType)};
+unmarshal(repair_scenario_routing, {route_changed, #wthd_RoutingRepairRouteChanged{route = Route}}) ->
+    {route_changed, unmarshal(route, Route)};
+unmarshal(repair_scenario_routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{reason = Reason}}) ->
+    {route_not_found, maybe_unmarshal(string, Reason)};
 unmarshal(change, {created, #wthd_CreatedChange{withdrawal = Withdrawal}}) ->
     {created, unmarshal(withdrawal, Withdrawal)};
 unmarshal(change, {status_changed, #wthd_StatusChange{status = Status}}) ->
@@ -222,10 +228,6 @@ unmarshal(change, {adjustment, Change}) ->
         id => unmarshal(id, Change#wthd_AdjustmentChange.id),
         payload => ff_withdrawal_adjustment_codec:unmarshal(change, Change#wthd_AdjustmentChange.payload)
     }};
-unmarshal(repair_scenario, {routing, RoutingScenarioType}) ->
-    {routing, unmarshal(repair_scenario_routing, RoutingScenarioType)};
-unmarshal(repair_scenario_routing, {route_changed, #wthd_WithdrawalRepairRouteChanged{route = Route}}) ->
-    {route_changed, unmarshal(route, Route)};
 unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
     ff_withdrawal:gen(#{
         id => unmarshal(id, Withdrawal#wthd_Withdrawal.id),

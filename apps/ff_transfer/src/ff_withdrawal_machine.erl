@@ -193,14 +193,10 @@ process_repair({add_events, _} = Scenario, Machine, _Args, _Opts) ->
 process_repair(Scenario, Machine, _Args, _Opts) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
     {ok, ScenarioResult} = ff_withdrawal:start_repair(Scenario, withdrawal(St)),
-    ct:pal("WOLOLO> process_repair -> ScenarioResult=~p~n", [ScenarioResult]),
     ProcessedResult = process_result(ScenarioResult, St),
-    ct:pal("WOLOLO> process_repair -> ProcessedResult=~p~n", [ProcessedResult]),
     case ff_repair:validate_scenario_result(ff_withdrawal, Machine, ProcessedResult) of
         {ok, valid} ->
-            Retval = {ok, {ok, ProcessedResult}},
-            ct:pal("WOLOLO> process_repair -> Retval=~p~n", [Retval]),
-            Retval;
+            {ok, {ok, ProcessedResult}};
         {error, _Reason} = Error ->
             {Error, #{}}
     end.

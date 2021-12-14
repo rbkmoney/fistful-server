@@ -554,7 +554,6 @@ start_repair(Scenario, St) ->
     %TODO: после вызова process_transfer активити заново высчитывается, надо продумать правильно ли здесь проверять совместимость со сценарием
     ok = check_activity_compatibility(Scenario, Activity),
     RepairState = St#{repair_scenario => Scenario},
-    ct:pal("WOLOLO> start_repair_scenario -> RepairState=~p~n", [RepairState]),
     {ok, process_transfer(RepairState)}.
 
 check_activity_compatibility({routing, _}, Activity) when Activity =:= routing ->
@@ -567,16 +566,13 @@ check_activity_compatibility(Scenario, Activity) ->
 
 -spec process_transfer(withdrawal_state()) -> process_result().
 process_transfer(Withdrawal) ->
-    ct:pal("WOLOLO> process_transfer -> Withdrawal = ~p~n", [Withdrawal]),
-    Activity = deduce_activity(Withdrawal),
-    Result = case Withdrawal of
+    case Withdrawal of
         #{repair_scenario := RepairScenario} ->
             do_process_repair(RepairScenario, Withdrawal);
         _ ->
+            Activity = deduce_activity(Withdrawal),
             do_process_transfer(Activity, Withdrawal)
-    end,
-    ct:pal("WOLOLO> process_transfer -> Result = ~p~n", [Result]),
-    Result.
+    end.
 
 %%
 
@@ -765,24 +761,18 @@ do_finished_activity(#{status := {failed, _}, p_transfer := cancelled}) ->
 
 -spec do_process_repair(repair_scenario(), withdrawal_state()) -> process_result().
 do_process_repair(Scenario, Withdrawal) ->
-    R = process_repair(Scenario, Withdrawal),
-    ct:pal("WOLOLO> do_process_repair -> Result=~p~n", [R]),
-    R.
+    process_repair(Scenario, Withdrawal).
 
 -spec do_process_transfer(activity(), withdrawal_state()) -> process_result().
 do_process_transfer(routing, Withdrawal) ->
-    ct:pal("WOLOLO> do_process_transfer -> routing~n", []),
     process_routing(Withdrawal);
 do_process_transfer(p_transfer_start, Withdrawal) ->
-    ct:pal("WOLOLO> do_process_transfer -> p_transfer_start~n", []),
     process_p_transfer_creation(Withdrawal);
 do_process_transfer(p_transfer_prepare, Withdrawal) ->
-    ct:pal("WOLOLO> do_process_transfer -> p_transfer_prepare~n", []),
     Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
     {ok, Events} = ff_postings_transfer:prepare(Tr),
     {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(p_transfer_commit, Withdrawal) ->
-    ct:pal("WOLOLO> do_process_transfer -> p_transfer_commit~n", []),
     Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
     {ok, Events} = ff_postings_transfer:commit(Tr),
     {continue, [{p_transfer, Ev} || Ev <- Events]};

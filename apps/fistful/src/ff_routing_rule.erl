@@ -92,7 +92,6 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     | {error, misconfiguration}.
 compute_routing_ruleset(RulesetRef, VS, Revision) ->
     {ok, Ruleset} = ff_party:compute_routing_ruleset(RulesetRef, VS, Revision),
-    ct:pal("WOLOLO> compute_routing_ruleset -> Ruleset=~p~n", [Ruleset]),
     check_ruleset_computing(Ruleset#domain_RoutingRuleset.decisions).
 
 check_ruleset_computing({delegates, _}) ->

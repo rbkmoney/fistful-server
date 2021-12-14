@@ -485,8 +485,6 @@ create_ok_test(C) ->
     ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
     ?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
     ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)),
-    Machine = ff_withdrawal_machine:get(WithdrawalID),
-    ct:pal(error, "WOLOLO> create_ok_test -> Machine=~p~n", [Machine]).
 
 -spec quota_ok_test(config()) -> test_return().
 quota_ok_test(C) ->
@@ -689,8 +687,6 @@ repair_routing_changed_ok_test(C) ->
         )
     ),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
-    {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
-    ct:pal("WOLOLO> repair_routing_ok_test -> Events=~p~n", [Events]).
 
 % The point of this case is to fail routing stage
 % with internal error which causes to machine failing
@@ -730,11 +726,8 @@ repair_routing_not_found_ok_test(C) ->
         call_withdrawal_repair(
             WithdrawalID,
             {routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{reason = <<"SukaBlya">>}}}
-        ),
-    timer:sleep(5000),
-    {ok, Events} = ff_withdrawal_machine:events(WithdrawalID, {undefined, undefined}),
-    ct:pal("WOLOLO> repair_routing_ok_test -> Events=~p~n", [Events]).
-
+        ).
+    %TODO: check for repair success
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->

@@ -484,7 +484,7 @@ create_ok_test(C) ->
     ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
     ?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
-    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)),
+    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)).
 
 -spec quota_ok_test(config()) -> test_return().
 quota_ok_test(C) ->
@@ -686,7 +686,7 @@ repair_routing_changed_ok_test(C) ->
             WithdrawalID
         )
     ),
-    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
+    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
 
 % The point of this case is to fail routing stage
 % with internal error which causes to machine failing
@@ -725,9 +725,10 @@ repair_routing_not_found_ok_test(C) ->
     {ok, ok} =
         call_withdrawal_repair(
             WithdrawalID,
-            {routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{reason = <<"SukaBlya">>}}}
-        ).
-    %TODO: check for repair success
+            {routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{reason = <<"manual_repair_reason">>}}}
+        ),
+    FinalStatus = await_final_withdrawal_status(WithdrawalID),
+    ?assertMatch({failed, #{code := <<"manual_repair_reason">>}}, FinalStatus).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->

@@ -566,11 +566,11 @@ check_activity_compatibility(Scenario, Activity) ->
 
 -spec process_transfer(withdrawal_state()) -> process_result().
 process_transfer(Withdrawal) ->
+    Activity = deduce_activity(Withdrawal),
     case Withdrawal of
         #{repair_scenario := RepairScenario} ->
             do_process_repair(RepairScenario, Withdrawal);
         _ ->
-            Activity = deduce_activity(Withdrawal),
             do_process_transfer(Activity, Withdrawal)
     end.
 

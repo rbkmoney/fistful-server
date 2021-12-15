@@ -36,8 +36,7 @@ all(Revision) ->
 
 -spec checkout_object(revision(), object_ref()) -> object() | no_return().
 checkout_object(Revision, ObjectRef) ->
-    #'Snapshot'{domain = Domain} = dmt_client:checkout(Revision),
-    maps:get(ObjectRef, Domain).
+    dmt_client:checkout_object(Revision, ObjectRef).
 
 -spec commit(revision(), dmt_client:commit()) -> revision() | no_return().
 commit(Revision, Commit) ->

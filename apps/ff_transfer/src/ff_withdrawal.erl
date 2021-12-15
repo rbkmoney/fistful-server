@@ -456,7 +456,7 @@ create(Params) ->
             destination_id => DestinationID,
             quote => Quote
         }),
-        Result = [
+        [
             {created,
                 genlib_map:compact(#{
                     version => ?ACTUAL_FORMAT_VERSION,
@@ -472,8 +472,7 @@ create(Params) ->
                 })},
             {status_changed, pending},
             {resource_got, Resource}
-        ],
-        Result
+        ]
     end).
 
 create_resource(

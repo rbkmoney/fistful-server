@@ -796,7 +796,7 @@ do_process_transfer(stop, _Withdrawal) ->
 
 -spec process_repair(repair_scenario(), withdrawal_state()) -> process_result().
 process_repair({routing, {route_changed, Route}}, _Withdrawal) ->
-    {{set_timer, 0}, [{route_changed, Route}]};
+    {continue, [{route_changed, Route}]};
 process_repair({routing, {route_not_found, _} = FailType}, Withdrawal) ->
     process_transfer_fail(FailType, Withdrawal).
 

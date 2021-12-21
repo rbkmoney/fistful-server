@@ -207,8 +207,8 @@ unmarshal(repair_scenario, {routing, RoutingScenarioType}) ->
     {routing, unmarshal(repair_scenario_routing, RoutingScenarioType)};
 unmarshal(repair_scenario_routing, {route_changed, #wthd_RoutingRepairRouteChanged{route = Route}}) ->
     {route_changed, unmarshal(route, Route)};
-unmarshal(repair_scenario_routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{reason = Reason}}) ->
-    {route_not_found, maybe_unmarshal(string, Reason)};
+unmarshal(repair_scenario_routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{}}) ->
+    route_not_found;
 unmarshal(change, {created, #wthd_CreatedChange{withdrawal = Withdrawal}}) ->
     {created, unmarshal(withdrawal, Withdrawal)};
 unmarshal(change, {status_changed, #wthd_StatusChange{status = Status}}) ->

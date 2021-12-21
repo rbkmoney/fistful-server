@@ -227,12 +227,12 @@
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
 -export([adjustments/1]).
--export([start_repair/2]).
 -export([effective_final_cash_flow/1]).
 -export([sessions/1]).
 -export([session_id/1]).
 -export([get_current_session/1]).
 -export([get_current_session_status/1]).
+-export([repair_check_activity_compatibility/2]).
 
 %% Event source
 
@@ -265,7 +265,7 @@
 -type adjustment() :: ff_adjustment:adjustment().
 -type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
--type repair_scenario() :: ff_repair:scenario().
+-type repair_scenario() :: ff_repair:scenario() | undefined.
 -type currency_id() :: ff_currency:id().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
@@ -313,7 +313,7 @@
 
 -type fail_type() ::
     limit_check
-    | route_not_found | {route_not_found, binary()}
+    | route_not_found
     | {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}
     | session.
 
@@ -547,32 +547,22 @@ is_finished(#{status := {failed, _}}) ->
 is_finished(#{status := pending}) ->
     false.
 
--spec start_repair(repair_scenario(), withdrawal_state()) -> {ok, process_result()}.
-start_repair(Scenario, St) ->
-    Activity = ff_withdrawal:activity(St),
-    %TODO: после вызова process_transfer активити заново высчитывается, надо продумать правильно ли здесь проверять совместимость со сценарием
-    ok = check_activity_compatibility(Scenario, Activity),
-    RepairState = St#{repair_scenario => Scenario},
-    {ok, process_transfer(RepairState)}.
-
-check_activity_compatibility({routing, _}, Activity) when Activity =:= routing ->
-    ok;
-%TODO: activity_not_compatible_with_scenario - или что-то другое? Реализовать в протоколе и тут
-check_activity_compatibility(Scenario, Activity) ->
-    throw({exception, {activity_not_compatible_with_scenario, Activity, Scenario}}).
-
 %% Transfer callbacks
 
 -spec process_transfer(withdrawal_state()) -> process_result().
 process_transfer(Withdrawal) ->
+    ct:pal("WOLOLO> process_transfer -> Withdrawal=~p~n", [Withdrawal]),
     Activity = deduce_activity(Withdrawal),
-    case Withdrawal of
-        #{repair_scenario := RepairScenario} ->
-            do_process_repair(RepairScenario, Withdrawal);
-        _ ->
-            do_process_transfer(Activity, Withdrawal)
-    end.
-
+    R = case Activity of
+        {fail, Reason} ->
+            process_route_change(Withdrawal, Reason);
+        _Other ->
+            RepairScenario = maps:get(repair_scenario, Withdrawal, undefined),
+            ProcessTransfer = deduce_process_transfer(Activity),
+            ProcessTransfer(Withdrawal, RepairScenario)
+    end,
+    ct:pal("WOLOLO> process_transfer -> R=~p~n", [R]),
+    R.
 %%
 
 -spec process_session_finished(session_id(), session_result(), withdrawal_state()) ->
@@ -702,6 +692,24 @@ operation_domain_revision(Withdrawal) ->
 
 %% Processing helpers
 
+-type transfer_process() :: fun((withdrawal_state()) -> process_result()).
+
+-spec deduce_process_transfer(activity()) -> transfer_process().
+deduce_process_transfer(Activity) ->
+    case Activity of
+        routing -> fun process_routing/2;
+        p_transfer_start -> fun process_p_transfer_creation/2;
+        p_transfer_prepare -> fun process_p_transfer_prepare/2;
+        p_transfer_commit -> fun process_p_transfer_commit/2;
+        p_transfer_cancel -> fun process_p_transfer_cancel/2;
+        limit_check -> fun process_limit_check/2;
+        session_starting -> fun process_session_creation/2;
+        session_sleeping -> fun process_session_sleep/2;
+        finish -> fun process_transfer_finish/2;
+        adjustment -> fun process_adjustment/2;
+        stop -> fun process_stop/2
+    end.
+
 -spec deduce_activity(withdrawal_state()) -> activity().
 deduce_activity(Withdrawal) ->
     Params = #{
@@ -758,50 +766,23 @@ do_finished_activity(#{status := succeeded, p_transfer := committed}) ->
 do_finished_activity(#{status := {failed, _}, p_transfer := cancelled}) ->
     stop.
 
--spec do_process_repair(repair_scenario(), withdrawal_state()) -> process_result().
-do_process_repair(Scenario, Withdrawal) ->
-    process_repair(Scenario, Withdrawal).
+-spec repair_check_activity_compatibility(repair_scenario(), activity()) -> ok.
+repair_check_activity_compatibility({routing, _}, Activity) when Activity =:= routing ->
+    ok;
+%TODO: activity_not_compatible_with_scenario - или что-то другое? Реализовать в протоколе и тут
+repair_check_activity_compatibility(Scenario, Activity) ->
+    throw({exception, {activity_not_compatible_with_scenario, Activity, Scenario}}).
 
--spec do_process_transfer(activity(), withdrawal_state()) -> process_result().
-do_process_transfer(routing, Withdrawal) ->
-    process_routing(Withdrawal);
-do_process_transfer(p_transfer_start, Withdrawal) ->
-    process_p_transfer_creation(Withdrawal);
-do_process_transfer(p_transfer_prepare, Withdrawal) ->
-    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
-    {ok, Events} = ff_postings_transfer:prepare(Tr),
-    {continue, [{p_transfer, Ev} || Ev <- Events]};
-do_process_transfer(p_transfer_commit, Withdrawal) ->
-    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
-    {ok, Events} = ff_postings_transfer:commit(Tr),
-    {continue, [{p_transfer, Ev} || Ev <- Events]};
-do_process_transfer(p_transfer_cancel, Withdrawal) ->
-    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
-    {ok, Events} = ff_postings_transfer:cancel(Tr),
-    {continue, [{p_transfer, Ev} || Ev <- Events]};
-do_process_transfer(limit_check, Withdrawal) ->
-    process_limit_check(Withdrawal);
-do_process_transfer(session_starting, Withdrawal) ->
-    process_session_creation(Withdrawal);
-do_process_transfer(session_sleeping, Withdrawal) ->
-    process_session_sleep(Withdrawal);
-do_process_transfer({fail, Reason}, Withdrawal) ->
-    process_route_change(Withdrawal, Reason);
-do_process_transfer(finish, Withdrawal) ->
-    process_transfer_finish(Withdrawal);
-do_process_transfer(adjustment, Withdrawal) ->
-    process_adjustment(Withdrawal);
-do_process_transfer(stop, _Withdrawal) ->
+-spec process_stop(withdrawal_state(), repair_scenario()) -> process_result().
+process_stop(_Withdrawal, undefined) ->
     {undefined, []}.
 
--spec process_repair(repair_scenario(), withdrawal_state()) -> process_result().
-process_repair({routing, {route_changed, Route}}, _Withdrawal) ->
+-spec process_routing(withdrawal_state(), repair_scenario()) -> process_result().
+process_routing(_Withdrawal, {routing, {route_changed, Route}}) ->
     {continue, [{route_changed, Route}]};
-process_repair({routing, {route_not_found, _} = FailType}, Withdrawal) ->
-    process_transfer_fail(FailType, Withdrawal).
-
--spec process_routing(withdrawal_state()) -> process_result().
-process_routing(Withdrawal) ->
+process_routing(Withdrawal, {routing, route_not_found}) ->
+    process_transfer_fail(route_not_found, Withdrawal);
+process_routing(Withdrawal, undefined) ->
     case do_process_routing(Withdrawal) of
         {ok, [Route | _]} ->
             {continue, [
@@ -864,8 +845,8 @@ validate_quote_terminal(#{terminal_id := TerminalID}, #{terminal_id := TerminalI
 validate_quote_terminal(#{terminal_id := TerminalID}, _) ->
     {error, {inconsistent_quote_route, {terminal_id, TerminalID}}}.
 
--spec process_limit_check(withdrawal_state()) -> process_result().
-process_limit_check(Withdrawal) ->
+-spec process_limit_check(withdrawal_state(), repair_scenario()) -> process_result().
+process_limit_check(Withdrawal, undefined) ->
     WalletID = wallet_id(Withdrawal),
     {ok, Wallet} = get_wallet(WalletID),
     DomainRevision = operation_domain_revision(Withdrawal),
@@ -907,15 +888,33 @@ process_limit_check(Withdrawal) ->
         end,
     {continue, Events}.
 
--spec process_p_transfer_creation(withdrawal_state()) -> process_result().
-process_p_transfer_creation(Withdrawal) ->
+-spec process_p_transfer_creation(withdrawal_state(), repair_scenario()) -> process_result().
+process_p_transfer_creation(Withdrawal, undefined) ->
     FinalCashFlow = make_final_cash_flow(Withdrawal),
     PTransferID = construct_p_transfer_id(Withdrawal),
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
--spec process_session_creation(withdrawal_state()) -> process_result().
-process_session_creation(Withdrawal) ->
+-spec process_p_transfer_prepare(withdrawal_state(), repair_scenario()) -> process_result().
+process_p_transfer_prepare(Withdrawal, undefined) ->
+    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
+    {ok, Events} = ff_postings_transfer:prepare(Tr),
+    {continue, [{p_transfer, Ev} || Ev <- Events]}.
+
+-spec process_p_transfer_commit(withdrawal_state(), repair_scenario()) -> process_result().
+process_p_transfer_commit(Withdrawal, undefined) ->
+    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
+    {ok, Events} = ff_postings_transfer:commit(Tr),
+    {continue, [{p_transfer, Ev} || Ev <- Events]}.
+
+-spec process_p_transfer_cancel(withdrawal_state(), repair_scenario()) -> process_result().
+process_p_transfer_cancel(Withdrawal, undefined) ->
+    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
+    {ok, Events} = ff_postings_transfer:cancel(Tr),
+    {continue, [{p_transfer, Ev} || Ev <- Events]}.
+
+-spec process_session_creation(withdrawal_state(), repair_scenario()) -> process_result().
+process_session_creation(Withdrawal, undefined) ->
     ID = construct_session_id(Withdrawal),
     #{
         wallet_id := WalletID,
@@ -970,8 +969,8 @@ create_session(ID, TransferData, SessionParams) ->
             ok
     end.
 
--spec process_session_sleep(withdrawal_state()) -> process_result().
-process_session_sleep(Withdrawal) ->
+-spec process_session_sleep(withdrawal_state(), repair_scenario()) -> process_result().
+process_session_sleep(Withdrawal, undefined) ->
     SessionID = session_id(Withdrawal),
     {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
     Session = ff_withdrawal_session_machine:session(SessionMachine),
@@ -983,8 +982,8 @@ process_session_sleep(Withdrawal) ->
             {continue, [{session_finished, {SessionID, Result}}]}
     end.
 
--spec process_transfer_finish(withdrawal_state()) -> process_result().
-process_transfer_finish(_Withdrawal) ->
+-spec process_transfer_finish(withdrawal_state(), repair_scenario()) -> process_result().
+process_transfer_finish(_Withdrawal, undefined) ->
     {undefined, [{status_changed, succeeded}]}.
 
 -spec process_transfer_fail(fail_type(), withdrawal_state()) -> process_result().
@@ -1389,7 +1388,6 @@ get_current_session_status(Withdrawal) ->
             pending
     end.
 
-
 %% Withdrawal validators
 
 -spec validate_withdrawal_creation(terms(), body(), wallet(), destination()) ->
@@ -1627,8 +1625,8 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Withdrawal) ->
         }
     }.
 
--spec process_adjustment(withdrawal_state()) -> process_result().
-process_adjustment(Withdrawal) ->
+-spec process_adjustment(withdrawal_state(), repair_scenario()) -> process_result().
+process_adjustment(Withdrawal, undefined) ->
     #{
         action := Action,
         events := Events0,
@@ -1766,11 +1764,9 @@ build_failure(limit_check, Withdrawal) ->
             }
     end;
 build_failure(route_not_found, _Withdrawal) ->
-    #{code => <<"no_route_found">>};
-build_failure({route_not_found, undefined}, Withdrawal) ->
-    build_failure(route_not_found, Withdrawal);
-build_failure({route_not_found, Reason}, _Withdrawal) ->
-    #{code => Reason};
+    #{
+        code => <<"no_route_found">>
+    };
 build_failure({inconsistent_quote_route, {Type, FoundID}}, Withdrawal) ->
     Details =
         {inconsistent_quote_route, #{

@@ -46,7 +46,6 @@
 -export([repair_routing_changed_ok_test/1]).
 -export([repair_routing_not_found_ok_test/1]).
 
-
 %% Internal types
 
 -type config() :: ct_helper:config().
@@ -134,20 +133,20 @@ end_per_suite(C) ->
 
 -spec init_per_group(group_name(), config()) -> config().
 init_per_group(withdrawal_repair, C) ->
-% The point of the group is to fail withdrawal machine,
-% and to test repair call with add_events scenario in which
-% withdrawal status changed. Machine is failed by misconfigured termset.
+    % The point of the group is to fail withdrawal machine,
+    % and to test repair call with add_events scenario in which
+    % withdrawal status changed. Machine is failed by misconfigured termset.
     Termset = withdrawal_misconfig_termset_fixture(),
     TermsetHierarchy = ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(Termset)]),
     _ = ct_domain_config:update(TermsetHierarchy),
     C;
 init_per_group(withdrawal_repair_routing, C) ->
-% The point the group is to fail some withdrawal stage
-% with internal error which causes to withdrawal machine failing
-% and then to repair machine with predetermined result.
-% Routing stage fail implemented by removing withdrawal_selector from
-% payment institution. That way valid until legacy selectors-routing is in work,
-% its necessary to find other way for failing withdrawal machine with new routing based on rulesets
+    % The point the group is to fail some withdrawal stage
+    % with internal error which causes to withdrawal machine failing
+    % and then to repair machine with predetermined result.
+    % Routing stage fail implemented by removing withdrawal_selector from
+    % payment institution. That way valid until legacy selectors-routing is in work,
+    % its necessary to find other way for failing withdrawal machine with new routing based on rulesets
     C;
 init_per_group(_, C) ->
     C.
@@ -672,12 +671,13 @@ repair_routing_changed_ok_test(C) ->
     {ok, ok} =
         call_withdrawal_repair(
             WithdrawalID,
-            {routing, {route_changed, #wthd_RoutingRepairRouteChanged{
-                route = #wthd_Route{
+            {routing,
+                {route_changed, #wthd_RoutingRepairRouteChanged{
+                    route = #wthd_Route{
                         provider_id = 1,
                         terminal_id = 1
-                }
-            }}}
+                    }
+                }}}
         ),
     ?assertEqual(
         route_changed,
@@ -725,10 +725,10 @@ repair_routing_not_found_ok_test(C) ->
     {ok, ok} =
         call_withdrawal_repair(
             WithdrawalID,
-            {routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{reason = <<"manual_repair_reason">>}}}
+            {routing, {route_not_found, #wthd_RoutingRepairRouteNotFound{}}}
         ),
     FinalStatus = await_final_withdrawal_status(WithdrawalID),
-    ?assertMatch({failed, #{code := <<"manual_repair_reason">>}}, FinalStatus).
+    ?assertMatch({failed, #{code := <<"no_route_found">>}}, FinalStatus).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
@@ -913,8 +913,7 @@ search_route_changed_event(#{provider_id := ProviderID, terminal_id := TerminalI
     lists:search(
         fun(T) ->
             case T of
-                {_N, {ev, _Timestamp, {route_changed,
-                    #{provider_id := ProviderID, terminal_id := TerminalID}}}} ->
+                {_N, {ev, _Timestamp, {route_changed, #{provider_id := ProviderID, terminal_id := TerminalID}}}} ->
                     true;
                 _Other ->
                     false

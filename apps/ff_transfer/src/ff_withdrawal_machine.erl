@@ -174,9 +174,19 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
+    %ct:pal("WOLOLO> process_timeout -> Machine=~p~n", [Machine]),
     St = ff_machine:collapse(ff_withdrawal, Machine),
+    ct:pal("WOLOLO> process_timeout -> St=~p~n", [St]),
     Withdrawal = withdrawal(St),
-    process_result(ff_withdrawal:process_transfer(Withdrawal), St).
+    R = case St of
+        #{ctx := #{repair_scenario := RepairScenario}} ->
+            process_result(ff_withdrawal:process_transfer(Withdrawal#{repair_scenario => RepairScenario}), empty_ctx);
+        _Other ->
+            process_result(ff_withdrawal:process_transfer(Withdrawal), empty_ctx)
+    end,
+    %ct:pal("WOLOLO> process_timeout -> Wthd=~p~n", [Withdrawal]),
+    %ct:pal("WOLOLO> process_repair -> R=~p~n", [R]).
+    R.
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) -> no_return().
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
@@ -191,15 +201,13 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 process_repair({add_events, _} = Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario);
 process_repair(Scenario, Machine, _Args, _Opts) ->
+    %ct:pal("WOLOLO> process_repair -> Machine=~p~n", [Machine]),
     St = ff_machine:collapse(ff_withdrawal, Machine),
-    {ok, ScenarioResult} = ff_withdrawal:start_repair(Scenario, withdrawal(St)),
-    ProcessedResult = process_result(ScenarioResult, St),
-    case ff_repair:validate_scenario_result(ff_withdrawal, Machine, ProcessedResult) of
-        {ok, valid} ->
-            {ok, {ok, ProcessedResult}};
-        {error, _Reason} = Error ->
-            {Error, #{}}
-    end.
+    Activity = ff_withdrawal:activity(withdrawal(St)),
+    ok = ff_withdrawal:repair_check_activity_compatibility(Scenario, Activity),
+    Result = process_result({continue, []}, #{repair_scenario => Scenario}),
+    %ct:pal("WOLOLO> process_repair -> R=~p~n", [Result]),
+    {ok, {ok, Result}}.
 
 -spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, ff_withdrawal:start_adjustment_error()}.
@@ -207,7 +215,7 @@ do_start_adjustment(Params, Machine) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
     case ff_withdrawal:start_adjustment(Params, withdrawal(St)) of
         {ok, Result} ->
-            {ok, process_result(Result, St)};
+            {ok, process_result(Result, empty_ctx)};
         {error, _Reason} = Error ->
             {Error, #{}}
     end.
@@ -218,15 +226,16 @@ do_process_session_finished(SessionID, SessionResult, Machine) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
     case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of
         {ok, Result} ->
-            {ok, process_result(Result, St)};
+            {ok, process_result(Result, empty_ctx)};
         {error, _Reason} = Error ->
             {Error, #{}}
     end.
 
-process_result({Action, Events}, St) ->
+process_result({Action, Events}, Ctx) ->
     genlib_map:compact(#{
         events => set_events(Events),
-        action => set_action(Action, St)
+        action => set_action(Action),
+        aux_state => set_aux_state(Ctx)
     }).
 
 set_events([]) ->
@@ -234,14 +243,17 @@ set_events([]) ->
 set_events(Events) ->
     ff_machine:emit_events(Events).
 
-set_action(continue, _St) ->
+set_action(continue) ->
     continue;
-set_action(undefined, _St) ->
+set_action(undefined) ->
     undefined;
-set_action(sleep, _St) ->
-    unset_timer;
-set_action({set_timer, Timeout}, _St) ->
-    {set_timer, {timeout, Timeout}}.
+set_action(sleep) ->
+    unset_timer.
+
+set_aux_state(empty_ctx) ->
+    undefined;
+set_aux_state(#{repair_scenario := _Scenario} = Ctx) ->
+    #{ctx => Ctx}.
 
 call(ID, Call) ->
     case machinery:call(?NS, ID, Call, backend()) of

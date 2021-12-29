@@ -551,17 +551,19 @@ is_finished(#{status := pending}) ->
 
 -spec process_transfer(withdrawal_state()) -> process_result().
 process_transfer(Withdrawal) ->
-    ct:pal("WOLOLO> process_transfer -> Withdrawal=~p~n", [Withdrawal]),
+    %ct:pal("WOLOLO> process_transfer -> Withdrawal=~p~n", [Withdrawal]),
     Activity = deduce_activity(Withdrawal),
+    %ct:pal("WOLOLO> process_transfer -> Activity=~p~n", [Activity]),
     R = case Activity of
         {fail, Reason} ->
             process_route_change(Withdrawal, Reason);
         _Other ->
             RepairScenario = maps:get(repair_scenario, Withdrawal, undefined),
-            ProcessTransfer = deduce_process_transfer(Activity),
-            ProcessTransfer(Withdrawal, RepairScenario)
+            ProcessTransferFun = deduce_process_transfer(Activity),
+            %ct:pal("WOLOLO> process_transfer -> Call ~p with Scenario=~p~n", [ProcessTransferFun, RepairScenario]),
+            ProcessTransferFun(Withdrawal, RepairScenario)
     end,
-    ct:pal("WOLOLO> process_transfer -> R=~p~n", [R]),
+    %ct:pal("WOLOLO> process_transfer -> R=~p~n", [R]),
     R.
 %%
 
@@ -769,9 +771,8 @@ do_finished_activity(#{status := {failed, _}, p_transfer := cancelled}) ->
 -spec repair_check_activity_compatibility(repair_scenario(), activity()) -> ok.
 repair_check_activity_compatibility({routing, _}, Activity) when Activity =:= routing ->
     ok;
-%TODO: activity_not_compatible_with_scenario - или что-то другое? Реализовать в протоколе и тут
 repair_check_activity_compatibility(Scenario, Activity) ->
-    throw({exception, {activity_not_compatible_with_scenario, Activity, Scenario}}).
+    {error, {not_compatible, {activity, Activity}, {scenario, Scenario}}}.
 
 -spec process_stop(withdrawal_state(), repair_scenario()) -> process_result().
 process_stop(_Withdrawal, undefined) ->

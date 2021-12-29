@@ -31,10 +31,11 @@
 
 -type repair_scenario() :: ff_repair:scenario().
 -type repair_error() :: ff_repair:repair_error().
+
 -type repair_response() :: ff_repair:repair_response().
 %-type repair_data() :: #{
-%    repair_status := pending | {error, repair_error()} | done,
-%    repair_scenario := repair_scenario()
+%    status := pending | {error, repair_error()} | done,
+%    scenario := repair_scenario()
 %}.
 
 -export_type([id/0]).
@@ -179,28 +180,24 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
-    %ct:pal("WOLOLO> process_timeout -> Machine=~p~n", [Machine]),
+    %ct:pal("WOLOLO> process_timeout -> Ctx=~p~n", [Ctx]),
     St = ff_machine:collapse(ff_withdrawal, Machine),
-    Ctx = maps:get(ctx, St),
-    ct:pal("WOLOLO> process_timeout -> Ctx=~p~n", [Ctx]),
-    Withdrawal = withdrawal(St),
+    Ctx0 = maps:get(ctx, St),
+    Withdrawal0 = withdrawal(St),
+    {Withdrawal1, Ctx1} = check_repair_data(Withdrawal0, Ctx0),
+    process_result(ff_withdrawal:process_transfer(Withdrawal1), Ctx1).
+
+check_repair_data(Withdrawal, Ctx) ->
     case maps:get(repair_data, Ctx, undefined) of
         undefined ->
-            process_result(ff_withdrawal:process_transfer(Withdrawal), Ctx);
-        #{repair_status := Status, repair_scenario := Scenario} = RepairData ->
-            case Status of
-                pending ->
-                    Ctx1 = Ctx#{repair_data => RepairData#{repair_status => done}},
-                    process_result(ff_withdrawal:process_transfer(Withdrawal#{repair_scenario => Scenario}), Ctx1);
-                {error, _Error} ->
-                    process_result({undefined, []}, Ctx);
-                done ->
-                    process_result(ff_withdrawal:process_transfer(Withdrawal), Ctx)
-            end
+            {Withdrawal, Ctx};
+        #{status := pending, scenario := Scenario} = RepairData ->
+            {Withdrawal#{repair_scenario => Scenario}, Ctx#{repair_data => RepairData#{status => done}}};
+        #{status := {error, _Error}} ->
+            {Withdrawal, Ctx};
+        #{status := done} ->
+            {Withdrawal, Ctx}
     end.
-    %ct:pal("WOLOLO> process_timeout -> St=~p~n", [St]),
-    %ct:pal("WOLOLO> process_timeout -> Wthd=~p~n", [Withdrawal]),
-    %ct:pal("WOLOLO> process_repair -> R=~p~n", [R]).
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) -> no_return().
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
@@ -217,17 +214,21 @@ process_repair({add_events, _} = Scenario, Machine, _Args, _Opts) ->
 process_repair(Scenario, Machine, _Args, _Opts) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
     Activity = ff_withdrawal:activity(withdrawal(St)),
-    ok = ff_withdrawal:repair_check_activity_compatibility(Scenario, Activity),
-    ct:pal("WOLOLO> process_repair -> Scenario=~p~n", [Scenario]),
-    Result = process_result({continue, []}, #{repair_data => init_repair_data(Scenario)}),
-    %ct:pal("WOLOLO> process_repair -> R=~p~n", [Result]),
-    {ok, {ok, Result}}.
-
-init_repair_data(Scenario) ->
-    #{
-        repair_status => pending,
-        repair_scenario => Scenario
-    }.
+    case ff_withdrawal:repair_check_activity_compatibility(Scenario, Activity) of
+        ok ->
+            ct:pal("WOLOLO> process_repair -> Compatible ok~n", []),
+            NewCtx = #{
+                repair_data => #{
+                    status => pending,
+                    scenario => Scenario
+                }
+            },
+            Result = process_result({continue, []}, NewCtx),
+            {ok, {ok, Result}};
+        {error, Error} ->
+            ct:pal("WOLOLO> process_repair -> Not compatible !~n", []),
+            {error, Error}
+    end.
 
 -spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, ff_withdrawal:start_adjustment_error()}.
@@ -252,13 +253,11 @@ do_process_session_finished(SessionID, SessionResult, Machine) ->
     end.
 
 process_result({Action, Events}, Ctx) ->
-    R = genlib_map:compact(#{
+    genlib_map:compact(#{
         events => set_events(Events),
         action => set_action(Action),
         aux_state => set_aux_state(Ctx)
-    }),
-    ct:pal("WOLOLO> process_result -> R=~p~n", [R]),
-    R.
+    }).
 
 set_events([]) ->
     undefined;

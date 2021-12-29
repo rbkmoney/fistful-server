@@ -43,6 +43,7 @@
 -export([provider_callback_test/1]).
 -export([provider_terminal_terms_merging_test/1]).
 -export([force_status_change_test/1]).
+-export([repair_scenario_not_compatible_fail_test/1]).
 -export([repair_routing_changed_ok_test/1]).
 -export([repair_routing_not_found_ok_test/1]).
 
@@ -106,7 +107,8 @@ groups() ->
             use_quote_revisions_test
         ]},
         {withdrawal_repair, [sequence], [
-            force_status_change_test
+            force_status_change_test,
+            repair_scenario_not_compatible_fail_test
         ]},
         {withdrawal_repair_routing, [sequence], [
             repair_routing_changed_ok_test,
@@ -632,6 +634,42 @@ force_status_change_test(C) ->
     ?assertMatch(
         {failed, #{code := <<"Withdrawal failed by manual intervention">>}},
         get_withdrawal_status(WithdrawalID)
+    ).
+
+% The point of this case it to verify
+% repair scenario compatibility checking in non-compatible case
+% and to verify non-compatible error handling.
+% Bad scenario implemented as a scenario for routing stage,
+% but withdrawal stage actually is on transfer-created stage.
+-spec repair_scenario_not_compatible_fail_test(config()) -> test_return().
+repair_scenario_not_compatible_fail_test(C) ->
+    Cash = {100, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    await_withdraval_transfer_created(WithdrawalID),
+    ?assertMatch(
+        {exception, #fistful_RepairScenarioFailed{}},
+        call_withdrawal_repair(
+            WithdrawalID,
+            {routing,
+                {route_changed, #wthd_RoutingRepairRouteChanged{
+                    route = #wthd_Route{
+                        provider_id = 1,
+                        terminal_id = 1
+                    }
+                }}}
+        )
     ).
 
 % The point of this case is to fail routing stage

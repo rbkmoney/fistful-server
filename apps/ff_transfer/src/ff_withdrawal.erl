@@ -551,20 +551,16 @@ is_finished(#{status := pending}) ->
 
 -spec process_transfer(withdrawal_state()) -> process_result().
 process_transfer(Withdrawal) ->
-    %ct:pal("WOLOLO> process_transfer -> Withdrawal=~p~n", [Withdrawal]),
     Activity = deduce_activity(Withdrawal),
-    %ct:pal("WOLOLO> process_transfer -> Activity=~p~n", [Activity]),
-    R = case Activity of
+    case Activity of
         {fail, Reason} ->
             process_route_change(Withdrawal, Reason);
         _Other ->
             RepairScenario = maps:get(repair_scenario, Withdrawal, undefined),
             ProcessTransferFun = deduce_process_transfer(Activity),
-            %ct:pal("WOLOLO> process_transfer -> Call ~p with Scenario=~p~n", [ProcessTransferFun, RepairScenario]),
             ProcessTransferFun(Withdrawal, RepairScenario)
-    end,
-    %ct:pal("WOLOLO> process_transfer -> R=~p~n", [R]),
-    R.
+    end.
+
 %%
 
 -spec process_session_finished(session_id(), session_result(), withdrawal_state()) ->

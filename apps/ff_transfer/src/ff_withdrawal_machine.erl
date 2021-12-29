@@ -180,7 +180,6 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
-    %ct:pal("WOLOLO> process_timeout -> Ctx=~p~n", [Ctx]),
     St = ff_machine:collapse(ff_withdrawal, Machine),
     Ctx0 = maps:get(ctx, St),
     Withdrawal0 = withdrawal(St),
@@ -216,7 +215,6 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
     Activity = ff_withdrawal:activity(withdrawal(St)),
     case ff_withdrawal:repair_check_activity_compatibility(Scenario, Activity) of
         ok ->
-            ct:pal("WOLOLO> process_repair -> Compatible ok~n", []),
             NewCtx = #{
                 repair_data => #{
                     status => pending,
@@ -226,7 +224,6 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
             Result = process_result({continue, []}, NewCtx),
             {ok, {ok, Result}};
         {error, Error} ->
-            ct:pal("WOLOLO> process_repair -> Not compatible !~n", []),
             {error, Error}
     end.
 

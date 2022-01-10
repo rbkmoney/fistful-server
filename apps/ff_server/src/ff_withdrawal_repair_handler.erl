@@ -15,7 +15,7 @@
 -spec handle_function(woody:func(), woody:args(), options()) -> {ok, woody:result()} | no_return().
 handle_function('Repair', {ID, Scenario}, _Opts) ->
     DecodedScenario = ff_withdrawal_codec:unmarshal(repair_scenario, Scenario),
-    case  ff_withdrawal_machine:repair(ID, DecodedScenario) of
+    case ff_withdrawal_machine:repair(ID, DecodedScenario) of
         {ok, _Response} ->
             {ok, ok};
         {error, notfound} ->
@@ -25,4 +25,3 @@ handle_function('Repair', {ID, Scenario}, _Opts) ->
         {error, {failed, _Error}} ->
             woody_error:raise(business, #fistful_RepairScenarioFailed{})
     end.
-

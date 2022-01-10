@@ -180,23 +180,35 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
+    ct:pal("WOLOLO> process_timeout..Machine=~p~n", [Machine]),
     St = ff_machine:collapse(ff_withdrawal, Machine),
     Ctx0 = maps:get(ctx, St),
+    %ct:pal("WOLOLO> Ctx0 = ~p~n", [Ctx0]),
     Withdrawal0 = withdrawal(St),
-    {Withdrawal1, Ctx1} = check_repair_data(Withdrawal0, Ctx0),
-    process_result(ff_withdrawal:process_transfer(Withdrawal1), Ctx1).
+    %{Withdrawal1, Ctx1} = check_repair_data(Withdrawal0, Ctx0),
+    %ct:pal("WOLOLO> Ctx1 = ~p~n", [Ctx1]),
+    process_result(ff_withdrawal:process_transfer(Withdrawal0), Ctx0).
 
-check_repair_data(Withdrawal, Ctx) ->
-    case maps:get(repair_data, Ctx, undefined) of
-        undefined ->
-            {Withdrawal, Ctx};
-        #{status := pending, scenario := Scenario} = RepairData ->
-            {Withdrawal#{repair_scenario => Scenario}, Ctx#{repair_data => RepairData#{status => done}}};
-        #{status := {error, _Error}} ->
-            {Withdrawal, Ctx};
-        #{status := done} ->
-            {Withdrawal, Ctx}
-    end.
+%check_repair_data(Withdrawal, Ctx) ->
+%    case get_repair_data(Ctx) of
+%        undefined ->
+%            {Withdrawal, Ctx};
+%        #{status := pending, scenario := Scenario} = RepairData ->
+%            {Withdrawal#{repair_scenario => Scenario}, put_repair_data(RepairData#{status => done}, Ctx)};
+%        #{status := {error, _Error}} ->
+%            {Withdrawal, Ctx};
+%        #{status := done} ->
+%            {Withdrawal, Ctx}
+%    end.
+
+put_repair_data(RepairData, Ctx) ->
+    BinRepairData = erlang:term_to_bin(RepairData),
+    Ctx#{<<"repair_data">> => BinRepairData}.
+
+%get_repair_data(#{<<"repair_data">> := BinRepairData}) ->
+%    erlang:bin_to_term(BinRepairData);
+%get_repair_data(_Ctx) ->
+%    undefined.
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) -> no_return().
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
@@ -211,16 +223,17 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 process_repair({add_events, _} = Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario);
 process_repair(Scenario, Machine, _Args, _Opts) ->
+    ct:pal("WOLOLO> process_repair..~n", []),
     St = ff_machine:collapse(ff_withdrawal, Machine),
     Activity = ff_withdrawal:activity(withdrawal(St)),
     case ff_withdrawal:repair_check_activity_compatibility(Scenario, Activity) of
         ok ->
-            NewCtx = #{
-                repair_data => #{
+            RepairData = #{
                     status => pending,
                     scenario => Scenario
-                }
             },
+            NewCtx = put_repair_data(RepairData, #{}),
+            ct:pal("WOLOLO> NewCtx = ~p~n", [NewCtx]),
             Result = process_result({continue, []}, NewCtx),
             {ok, {ok, Result}};
         {error, Error} ->
@@ -250,11 +263,14 @@ do_process_session_finished(SessionID, SessionResult, Machine) ->
     end.
 
 process_result({Action, Events}, Ctx) ->
-    genlib_map:compact(#{
+    ct:pal("WOLOLO> process_result -> Ctx0=~p~n", [Ctx]),
+    R = genlib_map:compact(#{
         events => set_events(Events),
         action => set_action(Action),
         aux_state => set_aux_state(Ctx)
-    }).
+    }),
+    ct:pal("WOLOLO> process_result -> R=~p~n", [R]),
+    R.
 
 set_events([]) ->
     undefined;
@@ -268,8 +284,10 @@ set_action(undefined) ->
 set_action(sleep) ->
     unset_timer.
 
-set_aux_state(Ctx) ->
-    #{ctx => Ctx}.
+set_aux_state(#{ctx := #{"repair_data" := _}} = Ctx) ->
+    #{ctx => Ctx};
+set_aux_state(_Ctx) ->
+    undefined.
 
 call(ID, Call) ->
     case machinery:call(?NS, ID, Call, backend()) of

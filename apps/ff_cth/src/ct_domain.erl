@@ -20,7 +20,7 @@
 -export([term_set_hierarchy/2]).
 -export([term_set_hierarchy/3]).
 -export([timed_term_set/1]).
--export([globals/2]).
+-export([globals/3]).
 -export([withdrawal_provider/4]).
 -export([withdrawal_terminal/1]).
 
@@ -437,13 +437,15 @@ timed_term_set(TermSet) ->
         terms = TermSet
     }.
 
--spec globals(?dtp('ExternalAccountSetRef'), [?dtp('PaymentInstitutionRef')]) -> object().
-globals(EASRef, PIRefs) ->
+-spec globals(?dtp('ExternalAccountSetRef'), [?dtp('PaymentInstitutionRef')], [?dtp('IdentityProviderRef')]) ->
+    object().
+globals(EASRef, PIRefs, IPRefs) ->
     {globals, #domain_GlobalsObject{
         ref = ?glob(),
         data = #domain_Globals{
             external_account_set = {value, EASRef},
-            payment_institutions = ?ordset(PIRefs)
+            payment_institutions = ?ordset(PIRefs),
+            identity_providers = ?ordset(IPRefs)
         }
     }}.
 

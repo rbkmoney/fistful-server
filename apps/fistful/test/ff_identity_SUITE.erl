@@ -10,6 +10,7 @@
 -export([create_missing_fails/1]).
 -export([create_ok/1]).
 
+-include_lib("ff_cth/include/ct_domain.hrl").
 %%
 
 -import(ff_pipeline, [unwrap/1]).
@@ -88,7 +89,7 @@ create_ok(C) ->
             id => ID,
             name => Name,
             party => Party,
-            provider => <<"good-one">>
+            provider => ?IDENTITY_PROVIDER_NAME1
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),

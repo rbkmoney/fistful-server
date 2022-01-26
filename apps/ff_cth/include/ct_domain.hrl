@@ -3,6 +3,9 @@
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
+-define(IDENTITY_PROVIDER_NAME1, <<"Test provider payinst#1">>).
+-define(IDENTITY_PROVIDER_NAME2, <<"Test provider payinst#2">>).
+
 -define(ordset(Es), ordsets:from_list(Es)).
 
 -define(glob(), #domain_GlobalsRef{}).
@@ -22,6 +25,7 @@
 -define(insp(ID), #domain_InspectorRef{id = ID}).
 -define(payinst(ID), #domain_PaymentInstitutionRef{id = ID}).
 -define(ruleset(ID), #domain_RoutingRulesetRef{id = ID}).
+-define(identprov(Name), #domain_IdentityProviderRef{id = Name}).
 
 -define(cash(Amount, SymCode), #domain_Cash{amount = Amount, currency = ?cur(SymCode)}).
 

@@ -1,5 +1,6 @@
 -module(ff_eventsink_SUITE).
 
+-include_lib("ff_cth/include/ct_domain.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 -export([all/0]).
@@ -94,7 +95,7 @@ get_identity_events_ok(C) ->
             id => ID,
             name => Name,
             party => Party,
-            provider => <<"good-one">>
+            provider => ?IDENTITY_PROVIDER_NAME1
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
@@ -269,7 +270,7 @@ create_party(_C) ->
     ID.
 
 create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, C).
+    create_identity(Party, ?IDENTITY_PROVIDER_NAME1, C).
 
 create_identity(Party, ProviderID, C) ->
     create_identity(Party, <<"Identity Name">>, ProviderID, C).
@@ -359,8 +360,8 @@ process_withdrawal(WalID, DestID) ->
             {Events, _MaxID} = ct_eventsink:events(undefined, 1000, Sink),
             search_event_commited(Events, WdrID)
         end,
-        % genlib_retry:linear(15, 1000)
-        genlib_retry:linear(5, 1000)
+        genlib_retry:linear(15, 1000)
+        % genlib_retry:linear(5, 1000)
     ),
     WdrID.
 

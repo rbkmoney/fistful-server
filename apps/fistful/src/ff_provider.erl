@@ -13,22 +13,18 @@
 -module(ff_provider).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
 -type contract_template_ref() :: dmsl_domain_thrift:'ContractTemplateRef'().
 -type contractor_level() :: dmsl_domain_thrift:'ContractorIdentificationLevel'().
 
 -type id() :: binary().
+-type provider_ref() :: dmsl_domain_thrift:'IdentityProviderRef'().
 -type provider() :: #{
-    id := id(),
+    id := provider_ref(),
     payinst_ref := payinst_ref(),
     payinst := payinst(),
     contract_template_ref := contract_template_ref(),
-    contractor_level := contractor_level()
-}.
-
--type configuration() :: #{
-    payinst_id := integer(),
-    contract_template_id := integer(),
     contractor_level := contractor_level()
 }.
 
@@ -61,8 +57,8 @@
 -spec contract_template(provider()) -> contract_template_ref().
 -spec contractor_level(provider()) -> contractor_level().
 
-id(#{id := ID}) ->
-    ID.
+id(#{id := Ref}) ->
+    Ref#domain_IdentityProviderRef.id.
 
 name(#{payinst := PI}) ->
     PI#domain_PaymentInstitution.name.
@@ -83,63 +79,47 @@ contractor_level(#{contractor_level := Level}) ->
 
 -spec list() -> [provider()].
 list() ->
+    ProviderRefs = list_providers(),
     [
         Provider
-     || ID <- list_providers(),
-        {ok, Provider} <- [ff_provider:get(ID)]
+     || Ref <- ProviderRefs,
+        {ok, Provider} <- [ff_provider:get(Ref)]
     ].
 
--spec get(id()) ->
+-spec get(id() | provider_ref()) ->
     {ok, provider()}
     | {error, notfound}.
-get(ID) ->
+get(ID) when is_binary(ID) ->
+    ff_provider:get(#domain_IdentityProviderRef{id = ID});
+get(IdentityProviderRef) ->
     do(fun() ->
         % TODO
-        %  - We need to somehow expose these things in the domain config
         %  - Possibly inconsistent view of domain config
-        Config = unwrap(get_config(ID)),
-        PaymentInstitutionRef = #domain_PaymentInstitutionRef{id = cfg(payment_institution, Config)},
+        IdentityProvider = unwrap(ff_domain_config:object({identity_provider, IdentityProviderRef})),
+        PaymentInstitutionRef = IdentityProvider#domain_IdentityProvider.payment_institution,
         {ok, PaymentInstitution} = ff_domain_config:object({payment_institution, PaymentInstitutionRef}),
-        ContractTemplateRef = #domain_ContractTemplateRef{id = cfg(contract_template_id, Config)},
-        % TODO FF-245: we shouldn't check after provider's configuration will be moved on domain_config
-        ok = validate_contract_template_ref(ContractTemplateRef),
         #{
-            id => ID,
+            id => IdentityProviderRef,
             payinst_ref => PaymentInstitutionRef,
             payinst => PaymentInstitution,
-            contract_template_ref => ContractTemplateRef,
-            contractor_level => cfg(contractor_level, Config)
+            contract_template_ref => IdentityProvider#domain_IdentityProvider.contract_template,
+            contractor_level => IdentityProvider#domain_IdentityProvider.contractor_level
         }
     end).
 
 %% Provider Configuration
 
--spec get_config(id()) ->
-    {ok, configuration()}
-    | {error, notfound}.
-get_config(ID) ->
-    case genlib_app:env(fistful, providers, #{}) of
-        #{ID := ProviderConfig} ->
-            {ok, #{
-                payinst_id => maps:get(payment_institution_id, ProviderConfig),
-                contract_template_id => maps:get(contract_template_id, ProviderConfig),
-                contractor_level => maps:get(contractor_level, ProviderConfig)
-            }};
-        #{} ->
-            {error, notfound}
+-spec list_providers() -> [provider_ref()].
+list_providers() ->
+    #'VersionedObject'{
+        % version = Version,
+        object = {globals, #domain_GlobalsObject{data = Globals}}
+    } = dmt_client:checkout_versioned_object(latest, globals()),
+
+    case Globals#domain_Globals.identity_providers of
+        undefined -> [];
+        List -> List
     end.
 
-cfg(payment_institution, C) ->
-    maps:get(payinst_id, C);
-cfg(contract_template_id, C) ->
-    maps:get(contract_template_id, C);
-cfg(contractor_level, C) ->
-    maps:get(contractor_level, C).
-
-validate_contract_template_ref(ContractTemplateRef) ->
-    {ok, _} = ff_domain_config:object({contract_template, ContractTemplateRef}),
-    ok.
-
--spec list_providers() -> [id()].
-list_providers() ->
-    maps:keys(genlib_app:env(fistful, providers, #{})).
+globals() ->
+    {globals, #domain_GlobalsRef{}}.
